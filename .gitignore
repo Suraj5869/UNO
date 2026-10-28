@@ -1,0 +1,29 @@
+# .NET
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+# Node
+node_modules/
+dist/
+build/
+.expo/
+.expo-shared/
+# Environment and secrets
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+# Test and coverage output
+coverage/
+TestResults/
+# Local IDE files
+.idea/
+.vscode/*
+!.vscode/extensions.json
