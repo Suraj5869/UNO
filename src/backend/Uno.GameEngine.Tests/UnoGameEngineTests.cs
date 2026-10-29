@@ -163,7 +163,9 @@ public sealed class UnoGameEngineTests
 
         var penalizedPlayer = game.CurrentPlayer;
         var originalHandSize = penalizedPlayer.Hand.Count;
-        var nextPlayer = game.Players[2];
+        // Alice and Bob have played the two stacked cards, so Charlie accepts
+        // the penalty and skips their turn; play returns to Alice.
+        var nextPlayer = game.Players[0];
 
         engine.AcceptDrawPenalty(game, penalizedPlayer.Id);
 
