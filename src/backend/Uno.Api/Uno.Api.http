@@ -1,0 +1,6 @@
+@Uno.Api_HostAddress = http://localhost:5104
+
+GET {{Uno.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
