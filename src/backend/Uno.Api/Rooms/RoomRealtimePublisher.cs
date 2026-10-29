@@ -17,7 +17,7 @@ public sealed class RoomRealtimePublisher(
 
     public async Task PublishRoomAsync(string code)
     {
-        var room = roomStore.ExecuteLocked(code, RoomResponse.From);
+        var room = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
         await hubContext.Clients.Group(RoomGroup(code))
             .SendAsync("RoomUpdated", room);
     }
