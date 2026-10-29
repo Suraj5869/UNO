@@ -9,9 +9,9 @@ public sealed record CreateRoomRequest(
 
 public sealed record JoinRoomRequest(string DisplayName);
 
-public sealed record ChangeRoomRulesRequest(Guid PlayerId, UnoRuleSet RuleSet);
+public sealed record ChangeRoomRulesRequest(string AccessToken, UnoRuleSet RuleSet);
 
-public sealed record StartRoomRequest(Guid PlayerId);
+public sealed record StartRoomRequest(string AccessToken);
 
 public sealed record RoomPlayerResponse(
     Guid Id,
@@ -22,7 +22,6 @@ public sealed record RoomPlayerResponse(
 public sealed record RoomResponse(
     Guid Id,
     string Code,
-    Guid CreatorPlayerId,
     int MaximumPlayers,
     UnoRuleSet RuleSet,
     UnoRoomStatus Status,
@@ -33,7 +32,6 @@ public sealed record RoomResponse(
         new(
             room.Id,
             room.Code,
-            room.CreatorPlayerId,
             room.MaximumPlayers,
             room.RuleSet,
             room.Status,
@@ -44,3 +42,12 @@ public sealed record RoomResponse(
                 player.GamePlayerId)).ToArray(),
             room.Game?.Status);
 }
+
+/// <summary>
+/// AccessToken is a room-specific secret. Return it only to the participant
+/// who joined; clients must not share or log it.
+/// </summary>
+public sealed record RoomAccessResponse(
+    RoomResponse Room,
+    Guid PlayerId,
+    string AccessToken);
