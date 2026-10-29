@@ -92,6 +92,12 @@ public sealed class UnoGameState
 
     internal bool? WildDrawFourWasIllegal { get; set; }
 
+    /// <summary>Type of draw card currently being stacked under House Rules.</summary>
+    public CardType? PendingDrawType { get; internal set; }
+
+    /// <summary>Total cards owed by the current pending draw-card chain.</summary>
+    public int PendingDrawAmount { get; internal set; }
+
     internal List<UnoCard> MutableDrawPile => _drawPile;
 
     internal List<UnoCard> MutableDiscardPile => _discardPile;
