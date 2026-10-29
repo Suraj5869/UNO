@@ -1,5 +1,5 @@
-using Uno.Api.Rooms;
 using Uno.Api.Hubs;
+using Uno.Api.Rooms;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +7,31 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
+
+var configuredOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .GetChildren()
+    .Select(section => section.Value)
+    .OfType<string>()
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .ToArray();
+
+var allowedOrigins = configuredOrigins.Length > 0
+    ? configuredOrigins
+    : builder.Environment.IsDevelopment()
+        ? new[] { "http://localhost:5173", "https://localhost:5173" }
+        : Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 // Room state is currently process-local. Use a persistent shared store before
 // scaling the API to multiple instances.
@@ -25,7 +50,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseCors("Frontend");
 app.UseAuthorization();
 
 app.MapControllers();
