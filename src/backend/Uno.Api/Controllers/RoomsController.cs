@@ -5,7 +5,7 @@ namespace Uno.Api.Controllers;
 
 [ApiController]
 [Route("api/rooms")]
-public sealed class RoomsController(RoomStore roomStore) : ControllerBase
+public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher publisher) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status201Created)]
@@ -58,11 +58,12 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public ActionResult<RoomAccessResponse> JoinRoom(string code, JoinRoomRequest request)
+    public async Task<ActionResult<RoomAccessResponse>> JoinRoom(string code, JoinRoomRequest request)
     {
         try
         {
             var access = roomStore.Join(code, request.DisplayName);
+            await publisher.PublishRoomAsync(code);
             return Ok(new RoomAccessResponse(
                 RoomResponse.From(access.Room),
                 access.PlayerId,
@@ -88,15 +89,19 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public ActionResult<RoomResponse> ChangeRules(
+    public async Task<ActionResult<RoomResponse>> ChangeRules(
         string code,
         ChangeRoomRulesRequest request)
     {
         try
         {
-            var room = roomStore.GetByCode(code);
-            var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
-            room.SetRuleSet(playerId, request.RuleSet);
+            var room = roomStore.ExecuteLocked(code, currentRoom =>
+            {
+                var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
+                currentRoom.SetRuleSet(playerId, request.RuleSet);
+                return currentRoom;
+            });
+            await publisher.PublishRoomAsync(code);
             return Ok(RoomResponse.From(room));
         }
         catch (KeyNotFoundException exception)
@@ -124,13 +129,18 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public ActionResult<RoomResponse> StartGame(string code, StartRoomRequest request)
+    public async Task<ActionResult<RoomResponse>> StartGame(string code, StartRoomRequest request)
     {
         try
         {
-            var room = roomStore.GetByCode(code);
-            var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
-            room.StartGame(playerId);
+            var room = roomStore.ExecuteLocked(code, currentRoom =>
+            {
+                var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
+                currentRoom.StartGame(playerId);
+                return currentRoom;
+            });
+            await publisher.PublishRoomAsync(code);
+            await publisher.PublishGameStateAsync(code);
             return Ok(RoomResponse.From(room));
         }
         catch (KeyNotFoundException exception)
