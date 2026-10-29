@@ -73,10 +73,11 @@ export default function App() {
     finally { setBusy(false); }
   };
 
+  const roomCode = access?.room.code;
   const refresh = useCallback(async () => {
-    if (!access) return;
+    if (!roomCode) return;
     try {
-      const value = await api<Room>('/api/rooms/' + encodeURIComponent(access.room.code));
+      const value = await api<Room>('/api/rooms/' + encodeURIComponent(roomCode));
       setRoom(value);
       setAccess(old => {
         if (!old) return old;
@@ -85,7 +86,7 @@ export default function App() {
         return next;
       });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh room.'); }
-  }, [access, api]);
+  }, [roomCode, api]);
 
   useEffect(() => {
     if (!access) return;
