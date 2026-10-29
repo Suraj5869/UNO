@@ -30,7 +30,7 @@ Private-room creators can choose Official Rules or House Rules before the game s
 
 - House Rules permit same-type draw-card stacking only: Draw Two on Draw Two and Wild Draw Four on Wild Draw Four. Mixed-type stacking is rejected. The accumulated penalty is passed to the next player; that player may stack the same card type or accept a Draw Two penalty and lose their turn.
 - A stacked Wild Draw Four replaces the prior challenge opportunity: the next player may stack another Wild Draw Four or challenge the latest Wild Draw Four. If the challenge succeeds, the latest offender draws the accumulated stack; if it fails, the challenger draws the accumulated stack plus two cards. This is a project-defined House Rules behavior, not Official Rules.
-- The game state stores the selected preset; room ownership, creator-only changes before start, and API/server enforcement remain to be implemented.
+- `UnoGameRoom` now enforces creator-only rule changes and start, 2–10 room capacity, membership only while waiting, and rule/membership locking once the game starts. This is an in-memory model; API authentication, persistence, expiry, global room-code uniqueness, and real-time transport remain to be implemented.
 
 ## Still to implement or decide
 
