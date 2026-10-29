@@ -40,12 +40,12 @@ Phase 4 — Real-time multiplayer backend foundation.
 
 ## Not yet verified
 
-- The user confirmed the gameplay and UNO-call tests passed locally before the latest rule-preset changes. Rule-preset tests have been added but have not yet been run in this environment.
+- GitHub Actions CI passed for commit `249658b016dc4c66bc81d89b63697e68b91771b7`: backend restore/build/test and web dependency install/build all succeeded. Manual browser-based multiplayer smoke tests have not been performed.
 - Wild Draw Four challenge edge cases, draw-pile exhaustion, and card-conservation behavior need more automated coverage.
 - Official initial discard behavior is still temporarily simplified to a number card.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
-- API room endpoints and SignalR hub have been committed but have not yet been built or smoke-tested together. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
-- The user confirmed the full test suite passes after room lifecycle implementation. API-specific integration tests and build/smoke tests remain to be added/run.
+- API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
+- The full solution test suite passes in GitHub Actions. Dedicated API/SignalR integration tests and manual multi-client smoke tests remain to be added/run.
 - First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, and a responsive layout. Client build and browser smoke tests have not yet run.
 
 ## Next task
