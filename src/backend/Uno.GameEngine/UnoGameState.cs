@@ -72,6 +72,8 @@ public sealed class UnoGameState
     public UnoCard TopDiscard =>
         _discardPile[^1];
 
+    internal UnoCard? JustDrawnCard { get; set; }
+
     internal int? WildDrawFourOffenderIndex { get; set; }
 
     internal bool? WildDrawFourWasIllegal { get; set; }
