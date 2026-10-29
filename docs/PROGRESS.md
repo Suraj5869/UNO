@@ -34,6 +34,8 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - REST API endpoints added for room creation, lookup by code, joining, creator-only rule selection, and starting a game.
 - API returns room summaries rather than the full engine state, so opponents' hands are not exposed through these room endpoints.
 - Room-specific random access tokens are issued to the creator and each joining participant; creator-only actions resolve the player identity from the token rather than trusting a client-supplied player ID.
+- SignalR hub added at `/hubs/uno-room` with token-validated room joining, lobby broadcasts, game actions routed through `UnoGameEngine`, and per-player state updates.
+- Game state responses reveal the viewer's own hand only; other players' cards are represented by counts. The server serializes room/game mutations through the in-memory room registry lock.
 - `RoomStore` is registered as a singleton. Rooms and access tokens remain process-local and are lost on restart; multi-instance deployment is not supported yet.
 
 ## Not yet verified
@@ -44,8 +46,8 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - UNO-call actions are implemented in the engine; real-time transport must enforce the call window across connected clients.
 - API room endpoints are implemented but have not yet been built or smoke-tested in this environment. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, rate limiting, and SignalR are not implemented.
 - The user confirmed the full test suite passes after room lifecycle implementation. API-specific integration tests and build/smoke tests remain to be added/run.
-- Multiplayer transport, state recovery, and persistence are not implemented.
+- SignalR transport is implemented in the API layer, but client integration, reconnect/state recovery, and persistence are not implemented. SignalR/API behavior still needs a successful build and smoke test.
 
 ## Next task
 
-Build and smoke-test the room API (`dotnet build src/backend/Uno.sln` and exercise create/join/rules/start/get endpoints). Add API integration tests. Then implement SignalR room updates and server-authoritative game actions.
+Build and smoke-test the API and SignalR hub (`dotnet build src/backend/Uno.sln`; test room join, per-player state filtering, turn validation, card play/draw, UNO call, and challenge actions). Add API/hub integration tests. Then implement the React client and reconnect/state recovery.
