@@ -18,7 +18,7 @@ A cross-platform multiplayer card-game platform, beginning with Classic UNO and 
 - Initial active-game state: in-memory only for local prototype; before production, add recovery/persistence and multi-instance coordination as needed.
 
 ## Status
-Planning/scaffold stage. No gameplay implementation has been verified yet. See `docs/PROGRESS.md`.
+The Classic UNO deck, game factory, gameplay engine, Wild Draw Four challenge flow, and UNO-call actions are implemented. The existing gameplay tests passed locally before the latest UNO-call additions; run the full test suite after pulling the latest `main` commit to verify those new tests. See `docs/PROGRESS.md` for the current status and next milestone.
 
 ## Start here
 1. Read `AGENTS.md`.
