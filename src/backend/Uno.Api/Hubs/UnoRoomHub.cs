@@ -127,5 +127,4 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             ?? throw new InvalidOperationException("The game has not started for this player.");
     }
 
-    private static Guid GetViewerPlayerId(GameStateResponse state) => state.ViewerPlayerId;
 }
