@@ -46,8 +46,8 @@ Phase 4 — Real-time multiplayer backend foundation.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
 - API room endpoints and SignalR hub have been committed but have not yet been built or smoke-tested together. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
 - The user confirmed the full test suite passes after room lifecycle implementation. API-specific integration tests and build/smoke tests remain to be added/run.
-- SignalR transport is implemented in the API layer, but client integration, reconnect/state recovery, and persistence are not implemented. SignalR/API behavior still needs a successful build and smoke test.
+- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, and a responsive layout. Client build and browser smoke tests have not yet run.
 
 ## Next task
 
-Build and smoke-test the API and SignalR hub (`dotnet build src/backend/Uno.sln`; test room join, per-player state filtering, turn validation, card play/draw, UNO call, and challenge actions). Add API/hub integration tests. Then implement the React client and reconnect/state recovery.
+Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test two browsers joining one room, privacy of each hand, all action flows, and reconnect behavior. Fix compile/runtime issues found locally before adding automated API/SignalR integration tests. Persistence and production CORS origins remain required before deployment.
