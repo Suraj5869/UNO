@@ -10,31 +10,33 @@ namespace Uno.Api.Hubs;
 /// </summary>
 public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publisher) : Hub
 {
-    public async Task<GameStateResponse> JoinRoom(string code, string accessToken)
+    public async Task<RoomResponse> JoinRoom(string code, string accessToken)
     {
-        var state = roomStore.ExecuteLocked(code, room =>
+        var joined = roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
-            return GameStateResponse.From(room, playerId);
+            var gameState = room.Game is null
+                ? null
+                : GameStateResponse.From(room, playerId);
+            return (PlayerId: playerId, Room: RoomResponse.From(room), GameState: gameState);
         });
 
         await Groups.AddToGroupAsync(
             Context.ConnectionId,
-            RoomRealtimePublisher.PlayerGroup(code, GetViewerPlayerId(state)));
+            RoomRealtimePublisher.PlayerGroup(code, joined.PlayerId));
         await Groups.AddToGroupAsync(
             Context.ConnectionId,
             RoomRealtimePublisher.RoomGroup(code));
 
         await Clients.Group(RoomRealtimePublisher.RoomGroup(code))
-            .SendAsync("RoomUpdated", roomStore.ExecuteLocked(code, RoomResponse.From));
+            .SendAsync("RoomUpdated", joined.Room);
 
-        if (state.RoomStatus == UnoRoomStatus.InProgress)
+        if (joined.GameState is not null)
         {
-            await Clients.Group(RoomRealtimePublisher.PlayerGroup(code, state.ViewerPlayerId))
-                .SendAsync("GameStateUpdated", state);
+            await Clients.Caller.SendAsync("GameStateUpdated", joined.GameState);
         }
 
-        return state;
+        return joined.Room;
     }
 
     public Task<GameStateResponse> GetGameState(string code, string accessToken)
