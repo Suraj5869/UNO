@@ -63,6 +63,12 @@ public sealed class UnoGameState
 
     public GameStatus Status { get; internal set; }
 
+    /// <summary>
+    /// Player who has one card and has not yet called UNO. The opportunity
+    /// expires when the next player begins an action.
+    /// </summary>
+    public Guid? PlayerAwaitingUnoCallId { get; internal set; }
+
     public bool IsWildDrawFourChallengePending =>
         WildDrawFourOffenderIndex.HasValue;
 
