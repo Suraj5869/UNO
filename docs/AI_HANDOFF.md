@@ -30,7 +30,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant implementation
-Room API endpoints and token-based creator authorization were committed directly to `main` in the latest API milestone.
+SignalR room updates and server-authoritative game actions were committed directly to `main` after the REST room API milestone. See `docs/SIGNALR.md` for the client protocol.
 
 ## Branch policy
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
