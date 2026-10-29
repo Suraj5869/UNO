@@ -183,6 +183,72 @@ public sealed class UnoGameEngineTests
         Assert.False(game.IsWildDrawFourChallengePending);
     }
 
+    [Fact]
+    public void PlayCard_LeavingOneCard_OpensUnoCallWindow()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var player = game.CurrentPlayer;
+
+        engine.PlayCard(game, player.Id, card);
+
+        Assert.Equal(player.Id, game.PlayerAwaitingUnoCallId);
+
+        engine.CallUno(game, player.Id);
+
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
+    public void CatchUno_WhenCallWasMissed_TargetDrawsTwoCards()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+
+        var catcher = game.CurrentPlayer;
+        var originalTargetHandSize = target.Hand.Count;
+
+        engine.CatchUno(game, catcher.Id, target.Id);
+
+        Assert.Equal(originalTargetHandSize + 2, target.Hand.Count);
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+        Assert.Equal(catcher.Id, game.CurrentPlayer.Id);
+    }
+
+    [Fact]
+    public void DrawCard_ByNextPlayer_ClosesPreviousPlayersUnoCallWindow()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var previousPlayer = game.CurrentPlayer;
+
+        engine.PlayCard(game, previousPlayer.Id, card);
+        Assert.Equal(previousPlayer.Id, game.PlayerAwaitingUnoCallId);
+
+        var nextPlayer = game.CurrentPlayer;
+        engine.DrawCard(game, nextPlayer.Id);
+
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
+    public void CatchUno_AfterCallWindowExpires_Throws()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+        var catcher = game.CurrentPlayer;
+        engine.DrawCard(game, catcher.Id);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CatchUno(game, catcher.Id, target.Id));
+    }
+
     private static UnoGameState CreateGameWithPlayableNumberCard(
         out UnoCard card)
     {
@@ -318,4 +384,48 @@ public sealed class UnoGameEngineTests
         throw new InvalidOperationException(
             $"Could not create a game with a playable {cardType} card.");
     }
+
+    private static UnoGameState CreateGameWithTwoCardCurrentPlayer(
+        out UnoCard card)
+    {
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"],
+                new Random(seed));
+            var player = game.CurrentPlayer;
+
+            var candidate = player.Hand.FirstOrDefault(handCard =>
+                handCard.Type == CardType.Number &&
+                (handCard.Color == game.ActiveColor ||
+                 handCard.Number == game.TopDiscard.Number));
+
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            var secondCard = player.Hand.FirstOrDefault(
+                handCard => handCard != candidate);
+            if (secondCard is null)
+            {
+                continue;
+            }
+
+            foreach (var handCard in player.Hand.ToList())
+            {
+                if (handCard != candidate && handCard != secondCard)
+                {
+                    player.RemoveCard(handCard);
+                }
+            }
+
+            card = candidate;
+            return game;
+        }
+
+        throw new InvalidOperationException(
+            "Could not create a game with a playable card and exactly two cards in hand.");
+    }
+
 }
