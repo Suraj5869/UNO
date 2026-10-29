@@ -22,6 +22,7 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 - Draw Two makes the next player draw two cards and lose their turn.
 - Draw-card stacking is **not allowed** in Official Rules.
 - When the draw pile is empty, reshuffle the discard pile except for the top discard to make a new draw pile.
+- When a player is reduced to one card, they must call UNO. If another player catches the missed call before the next player begins an action, the player with one card draws two cards.
 
 ## House Rules configuration
 
@@ -33,7 +34,7 @@ Private-room creators can choose Official Rules or House Rules before the game s
 
 ## Still to implement or decide
 
-- UNO call, missed-call timing, and penalty.
+- Integrate UNO-call actions into room/API transport so call timing is enforced consistently in real-time multiplayer.
 - Exact initial discard behavior for Skip, Reverse, Draw Two, Wild, and Wild Draw Four.
 - Exact permitted stacking combinations for House Rules.
 - Match scoring and whether a match consists of multiple rounds.
