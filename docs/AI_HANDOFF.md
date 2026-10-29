@@ -30,13 +30,13 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant implementation
-SignalR room updates and server-authoritative game actions were committed directly to `main` after the REST room API milestone. See `docs/SIGNALR.md` for the client protocol.
+The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, and responsive layout. See `docs/SIGNALR.md` for the protocol.
 
 ## Branch policy
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Run `dotnet build src/backend/Uno.sln` and smoke-test REST and SignalR. Verify waiting-room joins, player-specific hand privacy, turn enforcement, card actions, UNO calls, and draw penalties. Add integration tests, then build the React client and add reconnect/state recovery.
+Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test with two browser sessions, especially private hands and all turn/penalty flows. The client includes SignalR automatic reconnect but reconnect/state recovery is an initial prototype and needs real multi-client testing. Add automated API/SignalR integration tests after local verification.
 
 ## Constraints
 - Inspect existing code before editing.
