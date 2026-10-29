@@ -31,7 +31,10 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - Tests added for UNO calls, missed-call penalties, and expiry of the call window when the next player begins an action.
 - Private room lifecycle model: generated room ID and shareable six-character code, creator membership, 2–10 capacity validation, waiting/in-progress status, join validation, creator-only rule selection and game start, and mapping room participants to engine player IDs.
 - Automated room tests cover room creation, capacity, joining, creator permissions, rule selection, game start, participant mapping, and settings lock after start.
-- Rule documentation updated to reflect current decisions and remaining work.
+- REST API endpoints added for room creation, lookup by code, joining, creator-only rule selection, and starting a game.
+- API returns room summaries rather than the full engine state, so opponents' hands are not exposed through these room endpoints.
+- Room-specific random access tokens are issued to the creator and each joining participant; creator-only actions resolve the player identity from the token rather than trusting a client-supplied player ID.
+- `RoomStore` is registered as a singleton. Rooms and access tokens remain process-local and are lost on restart; multi-instance deployment is not supported yet.
 
 ## Not yet verified
 
@@ -39,10 +42,10 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - Wild Draw Four challenge edge cases, draw-pile exhaustion, and card-conservation behavior need more automated coverage.
 - Official initial discard behavior is still temporarily simplified to a number card.
 - UNO-call actions are implemented in the engine; real-time transport must enforce the call window across connected clients.
-- Room lifecycle is implemented as an in-memory game-engine model; API integration, durable storage, room-code uniqueness across concurrent rooms, expiry, authentication, and SignalR are not implemented.
-- House-rule stacking has been implemented for same-type Draw Two and Wild Draw Four chains; new automated coverage still needs to be run locally.
+- API room endpoints are implemented but have not yet been built or smoke-tested in this environment. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, rate limiting, and SignalR are not implemented.
+- The user confirmed the full test suite passes after room lifecycle implementation. API-specific integration tests and build/smoke tests remain to be added/run.
 - Multiplayer transport, state recovery, and persistence are not implemented.
 
 ## Next task
 
-Run `dotnet test src/backend/Uno.sln` on `main` to verify the new room lifecycle tests and all existing engine tests. If green, implement the API layer for creating/joining rooms and selecting rules, then add SignalR for real-time room updates and gameplay.
+Build and smoke-test the room API (`dotnet build src/backend/Uno.sln` and exercise create/join/rules/start/get endpoints). Add API integration tests. Then implement SignalR room updates and server-authoritative game actions.
