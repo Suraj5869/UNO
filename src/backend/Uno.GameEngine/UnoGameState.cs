@@ -1,4 +1,4 @@
-﻿namespace Uno.GameEngine;
+namespace Uno.GameEngine;
 
 public sealed class UnoGameState
 {
@@ -63,11 +63,20 @@ public sealed class UnoGameState
 
     public GameStatus Status { get; internal set; }
 
+    public bool IsWildDrawFourChallengePending =>
+        WildDrawFourOffenderIndex.HasValue;
+
     public UnoPlayer CurrentPlayer =>
         Players[CurrentPlayerIndex];
 
     public UnoCard TopDiscard =>
         _discardPile[^1];
+
+    internal UnoCard? JustDrawnCard { get; set; }
+
+    internal int? WildDrawFourOffenderIndex { get; set; }
+
+    internal bool? WildDrawFourWasIllegal { get; set; }
 
     internal List<UnoCard> MutableDrawPile => _drawPile;
 
