@@ -28,9 +28,8 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 
 Private-room creators can choose Official Rules or House Rules before the game starts. The selection is locked once play begins.
 
-- House Rules may enable draw stacking.
-- Stacking restrictions (same-type only versus mixed Draw Two/Wild Draw Four) must be selected explicitly before implementing the feature. Do not assume one stacking interpretation silently.
-- Each room's rule configuration must be stored with the game state and enforced by the server.
+- House Rules are represented as a distinct preset, but stacking behavior is not yet implemented. The agreed initial scope is same-type stacking only: Draw Two on Draw Two, and Wild Draw Four on Wild Draw Four; mixed-type stacking is not allowed. These options must be explicitly configured before the stacking engine is enabled.
+- The game state stores the selected preset; room ownership, creator-only changes before start, and API/server enforcement remain to be implemented.
 
 ## Still to implement or decide
 
