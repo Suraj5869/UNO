@@ -8,9 +8,17 @@ public static class UnoGameFactory
 
     public static UnoGameState CreateGame(
         IReadOnlyList<string> playerNames,
-        Random? random = null)
+        Random? random = null,
+        UnoRuleSet ruleSet = UnoRuleSet.Official)
     {
         ArgumentNullException.ThrowIfNull(playerNames);
+
+        if (!Enum.IsDefined(ruleSet))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ruleSet),
+                "Select either Official or House rules.");
+        }
 
         if (playerNames.Count < MinimumPlayers ||
             playerNames.Count > MaximumPlayers)
@@ -71,6 +79,7 @@ public static class UnoGameFactory
             startingCard.Color,
             currentPlayerIndex: 0,
             turnDirection: 1,
-            status: GameStatus.InProgress);
+            status: GameStatus.InProgress,
+            ruleSet: ruleSet);
     }
 }
