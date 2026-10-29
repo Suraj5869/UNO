@@ -19,6 +19,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - Classic 108-card deck, game factory, state model, and gameplay engine are implemented.
 - Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge.
 - UNO call and missed-call penalty actions are implemented; a missed call draws two cards if caught before the next player begins an action.
+- `UnoRuleSet` supports Official and House presets, defaults new games to Official, and stores the selected preset as read-only game state. Preset-selection tests have been added but not run since the latest commit.
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant commit
@@ -28,7 +29,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Run `dotnet test src/backend/Uno.sln` on `main`. Fix any failures, then add draw-pile recycling/card-conservation tests and design the room lifecycle with immutable Official/House Rules configuration before API and SignalR integration.
+Run `dotnet test src/backend/Uno.sln` on `main` to verify rule-preset tests. Then implement and test House Rules same-type stacking (Draw Two on Draw Two, Wild Draw Four on Wild Draw Four; mixed stacking prohibited), followed by room lifecycle and API/SignalR integration.
 
 ## Constraints
 - Inspect existing code before editing.
