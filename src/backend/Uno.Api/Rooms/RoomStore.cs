@@ -62,6 +62,20 @@ public sealed class RoomStore
         }
     }
 
+    /// <summary>
+    /// Runs a room operation while holding the registry lock. The first
+    /// multiplayer implementation uses this to serialize game mutations.
+    /// </summary>
+    public T ExecuteLocked<T>(string code, Func<UnoGameRoom, T> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        lock (_sync)
+        {
+            return operation(GetByCodeUnsafe(code));
+        }
+    }
+
     public UnoGameRoom GetByCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code))
