@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Uno.Api.Rooms;
-using Uno.GameEngine;
 
 namespace Uno.Api.Controllers;
 
@@ -9,26 +8,29 @@ namespace Uno.Api.Controllers;
 public sealed class RoomsController(RoomStore roomStore) : ControllerBase
 {
     [HttpPost]
-    [ProducesResponseType<RoomResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public ActionResult<RoomResponse> CreateRoom(CreateRoomRequest request)
+    public ActionResult<RoomAccessResponse> CreateRoom(CreateRoomRequest request)
     {
         try
         {
-            var room = roomStore.Create(request);
+            var access = roomStore.Create(request);
+            var response = new RoomAccessResponse(
+                RoomResponse.From(access.Room),
+                access.PlayerId,
+                access.AccessToken);
             return CreatedAtAction(
                 nameof(GetRoom),
-                new { code = room.Code },
-                RoomResponse.From(room));
+                new { code = access.Room.Code },
+                response);
         }
         catch (ArgumentException exception)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Invalid room request",
-                Detail = exception.Message,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return BadRequest(Problem("Invalid room request", exception.Message, 400));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(Problem("Could not create room", exception.Message, 409));
         }
     }
 
@@ -43,63 +45,40 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
         }
         catch (KeyNotFoundException exception)
         {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Room not found",
-                Detail = exception.Message,
-                Status = StatusCodes.Status404NotFound
-            });
+            return NotFound(Problem("Room not found", exception.Message, 404));
         }
         catch (ArgumentException exception)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Invalid room code",
-                Detail = exception.Message,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return BadRequest(Problem("Invalid room code", exception.Message, 400));
         }
     }
 
     [HttpPost("{code}/join")]
-    [ProducesResponseType<RoomResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public ActionResult<RoomResponse> JoinRoom(string code, JoinRoomRequest request)
+    public ActionResult<RoomAccessResponse> JoinRoom(string code, JoinRoomRequest request)
     {
         try
         {
-            var room = roomStore.GetByCode(code);
-            room.Join(request.DisplayName);
-            return Ok(RoomResponse.From(room));
+            var access = roomStore.Join(code, request.DisplayName);
+            return Ok(new RoomAccessResponse(
+                RoomResponse.From(access.Room),
+                access.PlayerId,
+                access.AccessToken));
         }
         catch (KeyNotFoundException exception)
         {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Room not found",
-                Detail = exception.Message,
-                Status = StatusCodes.Status404NotFound
-            });
+            return NotFound(Problem("Room not found", exception.Message, 404));
         }
         catch (ArgumentException exception)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Invalid join request",
-                Detail = exception.Message,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return BadRequest(Problem("Invalid join request", exception.Message, 400));
         }
         catch (InvalidOperationException exception)
         {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Cannot join room",
-                Detail = exception.Message,
-                Status = StatusCodes.Status409Conflict
-            });
+            return Conflict(Problem("Cannot join room", exception.Message, 409));
         }
     }
 
@@ -116,44 +95,26 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
         try
         {
             var room = roomStore.GetByCode(code);
-            room.SetRuleSet(request.PlayerId, request.RuleSet);
+            var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
+            room.SetRuleSet(playerId, request.RuleSet);
             return Ok(RoomResponse.From(room));
         }
         catch (KeyNotFoundException exception)
         {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Room not found",
-                Detail = exception.Message,
-                Status = StatusCodes.Status404NotFound
-            });
+            return NotFound(Problem("Room not found", exception.Message, 404));
         }
         catch (UnauthorizedAccessException exception)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
-            {
-                Title = "Creator permission required",
-                Detail = exception.Message,
-                Status = StatusCodes.Status403Forbidden
-            });
+            return StatusCode(StatusCodes.Status403Forbidden,
+                Problem("Room permission required", exception.Message, 403));
         }
         catch (ArgumentOutOfRangeException exception)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Invalid rules selection",
-                Detail = exception.Message,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return BadRequest(Problem("Invalid rules selection", exception.Message, 400));
         }
         catch (InvalidOperationException exception)
         {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Cannot change room rules",
-                Detail = exception.Message,
-                Status = StatusCodes.Status409Conflict
-            });
+            return Conflict(Problem("Cannot change room rules", exception.Message, 409));
         }
     }
 
@@ -168,35 +129,30 @@ public sealed class RoomsController(RoomStore roomStore) : ControllerBase
         try
         {
             var room = roomStore.GetByCode(code);
-            room.StartGame(request.PlayerId);
+            var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
+            room.StartGame(playerId);
             return Ok(RoomResponse.From(room));
         }
         catch (KeyNotFoundException exception)
         {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Room not found",
-                Detail = exception.Message,
-                Status = StatusCodes.Status404NotFound
-            });
+            return NotFound(Problem("Room not found", exception.Message, 404));
         }
         catch (UnauthorizedAccessException exception)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
-            {
-                Title = "Creator permission required",
-                Detail = exception.Message,
-                Status = StatusCodes.Status403Forbidden
-            });
+            return StatusCode(StatusCodes.Status403Forbidden,
+                Problem("Room permission required", exception.Message, 403));
         }
         catch (InvalidOperationException exception)
         {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Cannot start game",
-                Detail = exception.Message,
-                Status = StatusCodes.Status409Conflict
-            });
+            return Conflict(Problem("Cannot start game", exception.Message, 409));
         }
     }
+
+    private static ProblemDetails Problem(string title, string detail, int status) =>
+        new()
+        {
+            Title = title,
+            Detail = detail,
+            Status = status
+        };
 }
