@@ -138,6 +138,51 @@ public sealed class UnoGameEngineTests
         Assert.NotEqual(challenger.Id, game.CurrentPlayer.Id);
     }
 
+    [Fact]
+    public void ChallengeWildDrawFour_WhenIllegal_MakesOffenderDrawFourAndKeepsChallengerTurn()
+    {
+        var game = CreateGameWithWildDrawFourLegality(
+            shouldBeIllegal: true,
+            out var card);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+        var offenderHandSizeAfterPlay = offender.Hand.Count - 1;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+
+        var challenger = game.CurrentPlayer;
+        var challengerHandSize = challenger.Hand.Count;
+
+        engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(offenderHandSizeAfterPlay + 4, offender.Hand.Count);
+        Assert.Equal(challengerHandSize, challenger.Hand.Count);
+        Assert.Equal(challenger.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+    }
+
+    [Fact]
+    public void ChallengeWildDrawFour_WhenLegal_MakesChallengerDrawSixAndLoseTurn()
+    {
+        var game = CreateGameWithWildDrawFourLegality(
+            shouldBeIllegal: false,
+            out var card);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+
+        var challenger = game.CurrentPlayer;
+        var challengerHandSize = challenger.Hand.Count;
+        var nextPlayer = game.Players[2];
+
+        engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(challengerHandSize + 6, challenger.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+    }
+
     private static UnoGameState CreateGameWithPlayableNumberCard(
         out UnoCard card)
     {
@@ -211,6 +256,40 @@ public sealed class UnoGameEngineTests
 
         throw new InvalidOperationException(
             $"Could not create a game with a {cardType} card in the current player's hand.");
+    }
+
+    private static UnoGameState CreateGameWithWildDrawFourLegality(
+        bool shouldBeIllegal,
+        out UnoCard card)
+    {
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"],
+                new Random(seed));
+
+            var candidate = game.CurrentPlayer.Hand.FirstOrDefault(
+                handCard => handCard.Type == CardType.WildDrawFour);
+
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            var hasMatchingColor = game.CurrentPlayer.Hand.Any(handCard =>
+                handCard != candidate &&
+                handCard.Color == game.ActiveColor &&
+                handCard.Type is not (CardType.Wild or CardType.WildDrawFour));
+
+            if (hasMatchingColor == shouldBeIllegal)
+            {
+                card = candidate;
+                return game;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Could not create the requested Wild Draw Four challenge scenario.");
     }
 
     private static UnoGameState CreateGameWithPlayableActionCard(
