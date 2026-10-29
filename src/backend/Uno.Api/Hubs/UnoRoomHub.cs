@@ -1,0 +1,129 @@
+using Microsoft.AspNetCore.SignalR;
+using Uno.Api.Rooms;
+using Uno.GameEngine;
+
+namespace Uno.Api.Hubs;
+
+/// <summary>
+/// Real-time room connection and server-authoritative game actions.
+/// Every action is authorized with the participant's room access token.
+/// </summary>
+public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publisher) : Hub
+{
+    public async Task<GameStateResponse> JoinRoom(string code, string accessToken)
+    {
+        var state = roomStore.ExecuteLocked(code, room =>
+        {
+            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            return GameStateResponse.From(room, playerId);
+        });
+
+        await Groups.AddToGroupAsync(
+            Context.ConnectionId,
+            RoomRealtimePublisher.PlayerGroup(code, GetViewerPlayerId(state)));
+        await Groups.AddToGroupAsync(
+            Context.ConnectionId,
+            RoomRealtimePublisher.RoomGroup(code));
+
+        await Clients.Group(RoomRealtimePublisher.RoomGroup(code))
+            .SendAsync("RoomUpdated", roomStore.ExecuteLocked(code, RoomResponse.From));
+
+        if (state.RoomStatus == UnoRoomStatus.InProgress)
+        {
+            await Clients.Group(RoomRealtimePublisher.PlayerGroup(code, state.ViewerPlayerId))
+                .SendAsync("GameStateUpdated", state);
+        }
+
+        return state;
+    }
+
+    public Task<GameStateResponse> GetGameState(string code, string accessToken)
+    {
+        return Task.FromResult(roomStore.ExecuteLocked(code, room =>
+        {
+            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            return GameStateResponse.From(room, playerId);
+        }));
+    }
+
+    public async Task PlayCard(
+        string code,
+        string accessToken,
+        int cardIndex,
+        CardColor chosenColor = CardColor.None)
+    {
+        await ExecuteAction(code, accessToken, (room, playerId) =>
+        {
+            var game = RequireGame(room);
+            var gamePlayerId = GetGamePlayerId(room, playerId);
+            var hand = game.Players.First(player => player.Id == gamePlayerId).Hand;
+            if (cardIndex < 0 || cardIndex >= hand.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cardIndex), "Card index is outside the player's hand.");
+            }
+
+            new UnoGameEngine().PlayCard(game, gamePlayerId, hand[cardIndex], chosenColor);
+        });
+    }
+
+    public Task DrawCard(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().DrawCard(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task PassAfterDraw(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().PassAfterDraw(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task AcceptDrawPenalty(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().AcceptDrawPenalty(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task AcceptWildDrawFour(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().AcceptWildDrawFour(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task ChallengeWildDrawFour(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().ChallengeWildDrawFour(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task CallUno(string code, string accessToken) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId)));
+
+    public Task CatchUno(string code, string accessToken, Guid targetPlayerId) =>
+        ExecuteAction(code, accessToken, (room, playerId) =>
+            new UnoGameEngine().CatchUno(
+                RequireGame(room),
+                GetGamePlayerId(room, playerId),
+                GetGamePlayerId(room, targetPlayerId)));
+
+    private async Task ExecuteAction(
+        string code,
+        string accessToken,
+        Action<UnoGameRoom, Guid> action)
+    {
+        roomStore.ExecuteLocked(code, room =>
+        {
+            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            action(room, playerId);
+            return true;
+        });
+
+        await publisher.PublishRoomAsync(code);
+        await publisher.PublishGameStateAsync(code);
+    }
+
+    private static UnoGameState RequireGame(UnoGameRoom room) =>
+        room.Game ?? throw new InvalidOperationException("The game has not started.");
+
+    private static Guid GetGamePlayerId(UnoGameRoom room, Guid roomPlayerId)
+    {
+        var participant = room.Players.FirstOrDefault(player => player.Id == roomPlayerId)
+            ?? throw new UnauthorizedAccessException("The player is not a member of this room.");
+
+        return participant.GamePlayerId
+            ?? throw new InvalidOperationException("The game has not started for this player.");
+    }
+
+    private static Guid GetViewerPlayerId(GameStateResponse state) => state.ViewerPlayerId;
+}
