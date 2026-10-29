@@ -41,7 +41,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
-            return Ok(RoomResponse.From(roomStore.GetByCode(code)));
+            return Ok(roomStore.ExecuteLocked(code, room => RoomResponse.From(room)));
         }
         catch (KeyNotFoundException exception)
         {
@@ -63,9 +63,10 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         try
         {
             var access = roomStore.Join(code, request.DisplayName);
+            var roomResponse = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
             await publisher.PublishRoomAsync(code);
             return Ok(new RoomAccessResponse(
-                RoomResponse.From(access.Room),
+                roomResponse,
                 access.PlayerId,
                 access.AccessToken));
         }
@@ -99,10 +100,10 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
             {
                 var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
                 currentRoom.SetRuleSet(playerId, request.RuleSet);
-                return currentRoom;
+                return RoomResponse.From(currentRoom);
             });
             await publisher.PublishRoomAsync(code);
-            return Ok(RoomResponse.From(room));
+            return Ok(room);
         }
         catch (KeyNotFoundException exception)
         {
@@ -137,11 +138,11 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
             {
                 var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
                 currentRoom.StartGame(playerId);
-                return currentRoom;
+                return RoomResponse.From(currentRoom);
             });
             await publisher.PublishRoomAsync(code);
             await publisher.PublishGameStateAsync(code);
-            return Ok(RoomResponse.From(room));
+            return Ok(room);
         }
         catch (KeyNotFoundException exception)
         {
