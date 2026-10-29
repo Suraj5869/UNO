@@ -28,14 +28,15 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 
 Private-room creators can choose Official Rules or House Rules before the game starts. The selection is locked once play begins.
 
-- House Rules are represented as a distinct preset, but stacking behavior is not yet implemented. The agreed initial scope is same-type stacking only: Draw Two on Draw Two, and Wild Draw Four on Wild Draw Four; mixed-type stacking is not allowed. These options must be explicitly configured before the stacking engine is enabled.
+- House Rules permit same-type draw-card stacking only: Draw Two on Draw Two and Wild Draw Four on Wild Draw Four. Mixed-type stacking is rejected. The accumulated penalty is passed to the next player; that player may stack the same card type or accept a Draw Two penalty and lose their turn.
+- A stacked Wild Draw Four replaces the prior challenge opportunity: the next player may stack another Wild Draw Four or challenge the latest Wild Draw Four. If the challenge succeeds, the latest offender draws the accumulated stack; if it fails, the challenger draws the accumulated stack plus two cards. This is a project-defined House Rules behavior, not Official Rules.
 - The game state stores the selected preset; room ownership, creator-only changes before start, and API/server enforcement remain to be implemented.
 
 ## Still to implement or decide
 
 - Integrate UNO-call actions into room/API transport so call timing is enforced consistently in real-time multiplayer.
 - Exact initial discard behavior for Skip, Reverse, Draw Two, Wild, and Wild Draw Four.
-- Exact permitted stacking combinations for House Rules.
+- Additional House Rules options may be added later; current stacking is fixed to same-type only.
 - Match scoring and whether a match consists of multiple rounds.
 - Behavior when no cards remain anywhere to draw after recycling.
 
