@@ -15,20 +15,20 @@ Cross-platform multiplayer card-game platform, beginning with Classic UNO-style 
 ## Key requirement
 Shared room/game infrastructure targets 2–10 total participants, humans plus bots. Each variant must validate its own supported player count and deck.
 
-## Current verified implementation status
-Documentation scaffold only. No game code or tests have been implemented.
+## Current implementation status
+- Classic 108-card deck, game factory, state model, and gameplay engine are implemented.
+- Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge.
+- UNO call and missed-call penalty actions are implemented; a missed call draws two cards if caught before the next player begins an action.
+- User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
-## Last verified commit
-Not yet created.
+## Last relevant commit
+`52fc52553ea2c154e598b9f4ab5ab5200c197213` — add tests for UNO-call behavior.
 
-## Git status / branch
-Not yet inspected in a local clone.
-
-## Tests run
-None; no application code exists yet.
+## Branch policy
+Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Create the GitHub repository, commit/push this scaffold, clone it locally, then confirm installed .NET SDK and Node.js versions before creating the .NET solution and frontend applications.
+Run `dotnet test src/backend/Uno.sln` on `main`. Fix any failures, then add draw-pile recycling/card-conservation tests and design the room lifecycle with immutable Official/House Rules configuration before API and SignalR integration.
 
 ## Constraints
 - Inspect existing code before editing.
