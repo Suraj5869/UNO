@@ -75,15 +75,7 @@ public sealed class UnoGameEngine
         player.RemoveCard(card);
         game.MutableDiscardPile.Add(card);
         game.JustDrawnCard = null;
-
-        if (isWild)
-        {
-            game.ActiveColor = chosenColor;
-        }
-        else
-        {
-            game.ActiveColor = card.Color;
-        }
+        game.ActiveColor = isWild ? chosenColor : card.Color;
 
         if (card.Type == CardType.WildDrawFour)
         {
@@ -143,8 +135,14 @@ public sealed class UnoGameEngine
                 "The player has already drawn a card this turn.");
         }
 
-        var card = DrawCards(game, 1)[0];
+        var drawnCards = DrawCards(game, 1);
+        if (drawnCards.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "No cards are available to draw.");
+        }
 
+        var card = drawnCards[0];
         if (IsPlayable(card, game.TopDiscard, game.ActiveColor))
         {
             game.JustDrawnCard = card;
@@ -189,11 +187,12 @@ public sealed class UnoGameEngine
         EnsurePendingWildDrawFour(game);
 
         var offenderIndex = game.WildDrawFourOffenderIndex!.Value;
+        var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
 
         DrawCards(game, 4);
         ClearWildDrawFourChallenge(game);
 
-        if (game.Players[offenderIndex].Hand.Count == 0)
+        if (offenderHadNoCards)
         {
             game.Status = GameStatus.Completed;
             return;
@@ -216,6 +215,7 @@ public sealed class UnoGameEngine
 
         var offenderIndex = game.WildDrawFourOffenderIndex!.Value;
         var challengeSucceeded = game.WildDrawFourWasIllegal!.Value;
+        var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
 
         ClearWildDrawFourChallenge(game);
 
@@ -227,7 +227,7 @@ public sealed class UnoGameEngine
         }
 
         DrawCards(game, 6);
-        if (game.Players[offenderIndex].Hand.Count == 0)
+        if (offenderHadNoCards)
         {
             game.Status = GameStatus.Completed;
             return;
@@ -316,7 +316,6 @@ public sealed class UnoGameEngine
 
             if (game.MutableDrawPile.Count == 0)
             {
-                // No cards are available to draw; stop without duplicating cards.
                 break;
             }
 
@@ -338,7 +337,7 @@ public sealed class UnoGameEngine
             return;
         }
 
-        var topCard = discardPile[^1];
+        // Recycle every discard except the top card, which must remain playable.
         var recyclableCards = discardPile.Take(discardPile.Count - 1).ToList();
         discardPile.RemoveRange(0, discardPile.Count - 1);
 
@@ -350,10 +349,5 @@ public sealed class UnoGameEngine
         }
 
         game.MutableDrawPile.AddRange(recyclableCards);
-        // Keep the current top discard visible and out of the draw pile.
-        if (discardPile.Count == 0)
-        {
-            discardPile.Add(topCard);
-        }
     }
 }
