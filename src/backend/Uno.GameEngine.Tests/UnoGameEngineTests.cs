@@ -5,6 +5,37 @@ namespace Uno.GameEngine.Tests;
 public sealed class UnoGameEngineTests
 {
     [Fact]
+    public void CreateGame_WithoutRuleSelection_UsesOfficialRules()
+    {
+        var game = UnoGameFactory.CreateGame(
+            ["Alice", "Bob"],
+            new Random(123));
+
+        Assert.Equal(UnoRuleSet.Official, game.RuleSet);
+    }
+
+    [Fact]
+    public void CreateGame_WithHouseRules_PersistsSelectedRuleSet()
+    {
+        var game = UnoGameFactory.CreateGame(
+            ["Alice", "Bob", "Charlie"],
+            new Random(123),
+            UnoRuleSet.House);
+
+        Assert.Equal(UnoRuleSet.House, game.RuleSet);
+    }
+
+    [Fact]
+    public void CreateGame_WithUnknownRuleSet_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            UnoGameFactory.CreateGame(
+                ["Alice", "Bob"],
+                new Random(123),
+                (UnoRuleSet)999));
+    }
+
+    [Fact]
     public void PlayCard_WithPlayableNumberCard_UpdatesDiscardAndTurn()
     {
         var game = CreateGameWithPlayableNumberCard(out var card);
