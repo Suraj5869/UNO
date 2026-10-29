@@ -29,6 +29,8 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - Explicit `UnoRuleSet.Official` and `UnoRuleSet.House` presets; new games default to Official and persist the selected preset in a read-only game-state property.
 - House Rules same-type draw stacking: Draw Two stacks accumulate by two; Wild Draw Four stacks accumulate by four and retain challenge handling for the latest Wild Draw Four. Players can accept a pending Draw Two stack to draw the accumulated amount and lose their turn.
 - Tests added for UNO calls, missed-call penalties, and expiry of the call window when the next player begins an action.
+- Private room lifecycle model: generated room ID and shareable six-character code, creator membership, 2–10 capacity validation, waiting/in-progress status, join validation, creator-only rule selection and game start, and mapping room participants to engine player IDs.
+- Automated room tests cover room creation, capacity, joining, creator permissions, rule selection, game start, participant mapping, and settings lock after start.
 - Rule documentation updated to reflect current decisions and remaining work.
 
 ## Not yet verified
@@ -37,10 +39,10 @@ Phase 1 — Core Classic gameplay engine and action validation.
 - Wild Draw Four challenge edge cases, draw-pile exhaustion, and card-conservation behavior need more automated coverage.
 - Official initial discard behavior is still temporarily simplified to a number card.
 - UNO-call actions are implemented in the engine; real-time transport must enforce the call window across connected clients.
-- Room lifecycle, creator-only rule selection, and API integration are not implemented.
+- Room lifecycle is implemented as an in-memory game-engine model; API integration, durable storage, room-code uniqueness across concurrent rooms, expiry, authentication, and SignalR are not implemented.
 - House-rule stacking has been implemented for same-type Draw Two and Wild Draw Four chains; new automated coverage still needs to be run locally.
 - Multiplayer transport, state recovery, and persistence are not implemented.
 
 ## Next task
 
-Run `dotnet test src/backend/Uno.sln` on `main` to verify House Rules stacking. If green, implement private-room lifecycle (creator-only rule selection before start, 2–10 player validation, and immutable settings after start) before API/SignalR integration.
+Run `dotnet test src/backend/Uno.sln` on `main` to verify the new room lifecycle tests and all existing engine tests. If green, implement the API layer for creating/joining rooms and selecting rules, then add SignalR for real-time room updates and gameplay.
