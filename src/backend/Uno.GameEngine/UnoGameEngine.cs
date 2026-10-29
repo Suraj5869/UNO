@@ -72,7 +72,12 @@ public sealed class UnoGameEngine
                 handCard.Color == game.ActiveColor &&
                 handCard.Type is not (CardType.Wild or CardType.WildDrawFour));
 
+        game.PlayerAwaitingUnoCallId = null;
         player.RemoveCard(card);
+        if (player.Hand.Count == 1)
+        {
+            game.PlayerAwaitingUnoCallId = player.Id;
+        }
         game.MutableDiscardPile.Add(card);
         game.JustDrawnCard = null;
         game.ActiveColor = isWild ? chosenColor : card.Color;
@@ -135,6 +140,7 @@ public sealed class UnoGameEngine
                 "The player has already drawn a card this turn.");
         }
 
+        game.PlayerAwaitingUnoCallId = null;
         var drawnCards = DrawCards(game, 1);
         if (drawnCards.Count == 0)
         {
@@ -172,6 +178,7 @@ public sealed class UnoGameEngine
         }
 
         game.JustDrawnCard = null;
+        game.PlayerAwaitingUnoCallId = null;
         AdvanceTurn(game);
     }
 
@@ -189,6 +196,7 @@ public sealed class UnoGameEngine
         var offenderIndex = game.WildDrawFourOffenderIndex!.Value;
         var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
 
+        game.PlayerAwaitingUnoCallId = null;
         DrawCards(game, 4);
         ClearWildDrawFourChallenge(game);
 
@@ -218,6 +226,7 @@ public sealed class UnoGameEngine
         var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
 
         ClearWildDrawFourChallenge(game);
+        game.PlayerAwaitingUnoCallId = null;
 
         if (challengeSucceeded)
         {
