@@ -13,7 +13,8 @@ public sealed class UnoGameState
         CardColor activeColor,
         int currentPlayerIndex,
         int turnDirection,
-        GameStatus status)
+        GameStatus status,
+        UnoRuleSet ruleSet)
     {
         _players = players.ToList();
         _drawPile = drawPile.ToList();
@@ -45,6 +46,7 @@ public sealed class UnoGameState
         CurrentPlayerIndex = currentPlayerIndex;
         TurnDirection = turnDirection;
         Status = status;
+        RuleSet = ruleSet;
     }
 
     public IReadOnlyList<UnoPlayer> Players { get; }
@@ -62,6 +64,12 @@ public sealed class UnoGameState
     public int TurnDirection { get; internal set; }
 
     public GameStatus Status { get; internal set; }
+
+    /// <summary>
+    /// Rules selected when this game was created. This value is immutable
+    /// for the lifetime of the game so clients cannot switch rules mid-match.
+    /// </summary>
+    public UnoRuleSet RuleSet { get; }
 
     /// <summary>
     /// Player who has one card and has not yet called UNO. The opportunity
