@@ -40,6 +40,17 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void PlayCard_ByNonCurrentPlayer_Throws()
+    {
+        var game = CreateGameWithPlayableNumberCard(out var card);
+        var engine = new UnoGameEngine();
+        var nonCurrentPlayer = game.Players[1];
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.PlayCard(game, nonCurrentPlayer.Id, card));
+    }
+
+    [Fact]
     public void PlayCard_WithWildCardWithoutChosenColor_Throws()
     {
         var game = CreateGameWithCurrentPlayerCard(
@@ -52,6 +63,40 @@ public sealed class UnoGameEngineTests
             engine.PlayCard(game, currentPlayer.Id, card));
 
         Assert.Contains(card, currentPlayer.Hand);
+    }
+
+    [Fact]
+    public void PlayReverse_WithTwoPlayers_GivesTheTurnBackToTheSamePlayer()
+    {
+        var game = CreateGameWithPlayableActionCard(
+            CardType.Reverse,
+            playerCount: 2,
+            out var card);
+        var engine = new UnoGameEngine();
+        var currentPlayer = game.CurrentPlayer;
+
+        engine.PlayCard(game, currentPlayer.Id, card);
+
+        Assert.Equal(-1, game.TurnDirection);
+        Assert.Equal(currentPlayer.Id, game.CurrentPlayer.Id);
+    }
+
+    [Fact]
+    public void PlayDrawTwo_MakesNextPlayerDrawTwoAndSkipTheirTurn()
+    {
+        var game = CreateGameWithPlayableActionCard(
+            CardType.DrawTwo,
+            playerCount: 3,
+            out var card);
+        var engine = new UnoGameEngine();
+        var currentPlayer = game.CurrentPlayer;
+        var penalizedPlayer = game.Players[1];
+        var originalHandSize = penalizedPlayer.Hand.Count;
+
+        engine.PlayCard(game, currentPlayer.Id, card);
+
+        Assert.Equal(originalHandSize + 2, penalizedPlayer.Hand.Count);
+        Assert.Equal(game.Players[2].Id, game.CurrentPlayer.Id);
     }
 
     [Fact]
@@ -166,5 +211,32 @@ public sealed class UnoGameEngineTests
 
         throw new InvalidOperationException(
             $"Could not create a game with a {cardType} card in the current player's hand.");
+    }
+
+    private static UnoGameState CreateGameWithPlayableActionCard(
+        CardType cardType,
+        int playerCount,
+        out UnoCard card)
+    {
+        var names = Enumerable.Range(1, playerCount)
+            .Select(number => $"Player {number}")
+            .ToArray();
+
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(names, new Random(seed));
+            var candidate = game.CurrentPlayer.Hand.FirstOrDefault(handCard =>
+                handCard.Type == cardType &&
+                handCard.Color == game.ActiveColor);
+
+            if (candidate is not null)
+            {
+                card = candidate;
+                return game;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Could not create a game with a playable {cardType} card.");
     }
 }
