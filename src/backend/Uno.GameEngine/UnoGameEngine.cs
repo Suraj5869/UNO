@@ -245,6 +245,76 @@ public sealed class UnoGameEngine
         AdvanceTurn(game);
     }
 
+    /// <summary>
+    /// Records that a player has called UNO after being reduced to one card.
+    /// This must happen before the next player begins an action.
+    /// </summary>
+    public void CallUno(UnoGameState game, Guid playerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        EnsureGameInProgress(game);
+
+        if (game.PlayerAwaitingUnoCallId != playerId)
+        {
+            throw new InvalidOperationException(
+                "This player does not have an outstanding UNO call.");
+        }
+
+        var player = game.Players.FirstOrDefault(candidate => candidate.Id == playerId);
+        if (player is null || player.Hand.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "UNO can only be called when the player has exactly one card.");
+        }
+
+        game.PlayerAwaitingUnoCallId = null;
+    }
+
+    /// <summary>
+    /// Catches a player who has one card but has not called UNO. Any other
+    /// participant may catch them while the call window remains open.
+    /// </summary>
+    public void CatchUno(
+        UnoGameState game,
+        Guid catcherPlayerId,
+        Guid targetPlayerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        EnsureGameInProgress(game);
+
+        if (game.PlayerAwaitingUnoCallId != targetPlayerId)
+        {
+            throw new InvalidOperationException(
+                "There is no outstanding missed UNO call for that player.");
+        }
+
+        if (catcherPlayerId == targetPlayerId ||
+            !game.Players.Any(player => player.Id == catcherPlayerId))
+        {
+            throw new InvalidOperationException(
+                "A different player in this game must catch the missed UNO call.");
+        }
+
+        var targetIndex = -1;
+        for (var index = 0; index < game.Players.Count; index++)
+        {
+            if (game.Players[index].Id == targetPlayerId)
+            {
+                targetIndex = index;
+                break;
+            }
+        }
+
+        if (targetIndex < 0 || game.Players[targetIndex].Hand.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "The target player must have exactly one card.");
+        }
+
+        game.PlayerAwaitingUnoCallId = null;
+        DrawCards(game, 2, targetIndex);
+    }
+
     private static bool IsPlayable(
         UnoCard card,
         UnoCard topDiscard,
