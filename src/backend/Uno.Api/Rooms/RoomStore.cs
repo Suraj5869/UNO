@@ -127,7 +127,17 @@ public sealed class RoomStore
             }
 
             var game = room.StartGame(playerId);
-            _rematchCandidatesByRoomCode.Remove(room.Code);
+            if (_rematchCandidatesByRoomCode.Remove(room.Code, out var candidates))
+            {
+                var revokedTokens = _tokensByRoomCode[room.Code]
+                    .Where(entry => candidates.ContainsKey(entry.Value))
+                    .Select(entry => entry.Key)
+                    .ToArray();
+                foreach (var revokedToken in revokedTokens)
+                {
+                    _tokensByRoomCode[room.Code].Remove(revokedToken);
+                }
+            }
             return game;
         }
     }
@@ -178,7 +188,8 @@ public sealed class RoomStore
         lock (_sync)
         {
             var room = GetByCodeUnsafe(code);
-            if (_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+            if (_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId) &&
+                room.Players.Any(player => player.Id == playerId))
             {
                 return playerId;
             }
