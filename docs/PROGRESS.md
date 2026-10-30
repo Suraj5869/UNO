@@ -42,6 +42,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 
 - GitHub Actions CI passed for commit `249658b016dc4c66bc81d89b63697e68b91771b7`: backend restore/build/test and web dependency install/build all succeeded. Manual browser-based multiplayer smoke tests have not been performed.
 - Wild Draw Four challenge success/failure is now covered in both rule sets; draw-pile exhaustion and card-conservation behavior still need more automated coverage.
+- Server-enforced 30-second turn timeout is implemented with a live countdown. Normal timeout draws one card and skips; unresolved penalty timeout accepts the penalty and skips.
 - Official initial discard behavior is still temporarily simplified to a number card.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
 - API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
