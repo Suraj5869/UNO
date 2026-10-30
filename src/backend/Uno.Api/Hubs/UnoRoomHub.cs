@@ -80,17 +80,54 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         ExecuteAction(code, accessToken, (room, playerId) =>
             new UnoGameEngine().PassAfterDraw(RequireGame(room), GetGamePlayerId(room, playerId)));
 
-    public Task AcceptDrawPenalty(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().AcceptDrawPenalty(RequireGame(room), GetGamePlayerId(room, playerId)));
+    public Task AcceptDrawPenalty(string code, string accessToken)
+    {
+        var drawCount = 0;
+        return ExecuteAction(code, accessToken, (room, playerId) =>
+        {
+            var game = RequireGame(room);
+            drawCount = game.PendingDrawAmount;
+            new UnoGameEngine().AcceptDrawPenalty(game, GetGamePlayerId(room, playerId));
+        }, playerId => new GameActionPayload("CardsDrawn", playerId, null, drawCount));
+    }
 
-    public Task AcceptWildDrawFour(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().AcceptWildDrawFour(RequireGame(room), GetGamePlayerId(room, playerId)));
+    public Task AcceptWildDrawFour(string code, string accessToken)
+    {
+        var drawCount = 0;
+        return ExecuteAction(code, accessToken, (room, playerId) =>
+        {
+            var game = RequireGame(room);
+            drawCount = game.PendingDrawAmount;
+            new UnoGameEngine().AcceptWildDrawFour(game, GetGamePlayerId(room, playerId));
+        }, playerId => new GameActionPayload("CardsDrawn", playerId, null, drawCount));
+    }
 
-    public Task ChallengeWildDrawFour(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().ChallengeWildDrawFour(RequireGame(room), GetGamePlayerId(room, playerId)));
+    public Task ChallengeWildDrawFour(string code, string accessToken)
+    {
+        Guid? drawTargetPlayerId = null;
+        var drawCount = 0;
+        return ExecuteAction(code, accessToken, (room, playerId) =>
+        {
+            var game = RequireGame(room);
+            var offenderIndex = game.WildDrawFourOffenderIndex
+                ?? throw new InvalidOperationException("There is no pending Wild Draw Four offender.");
+            if (game.WildDrawFourWasIllegal == true)
+            {
+                var offenderGamePlayerId = game.Players[offenderIndex].Id;
+                drawTargetPlayerId = room.Players.First(player => player.GamePlayerId == offenderGamePlayerId).Id;
+                drawCount = game.PendingDrawAmount;
+            }
+            else
+            {
+                drawTargetPlayerId = playerId;
+                drawCount = game.PendingDrawAmount + 2;
+            }
+
+            new UnoGameEngine().ChallengeWildDrawFour(game, GetGamePlayerId(room, playerId));
+        }, _ => drawTargetPlayerId is null
+            ? null
+            : new GameActionPayload("CardsDrawn", drawTargetPlayerId.Value, null, drawCount));
+    }
 
     public async Task CallUno(string code, string accessToken)
     {
@@ -113,7 +150,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             new UnoGameEngine().CatchUno(
                 RequireGame(room),
                 GetGamePlayerId(room, playerId),
-                GetGamePlayerId(room, targetPlayerId)));
+                GetGamePlayerId(room, targetPlayerId)),
+            _ => new GameActionPayload("CardsDrawn", targetPlayerId, null, 2));
 
     private async Task ExecuteAction(
         string code,
