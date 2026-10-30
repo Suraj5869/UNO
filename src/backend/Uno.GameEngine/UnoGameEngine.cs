@@ -452,6 +452,21 @@ public sealed class UnoGameEngine
         game.WildDrawFourWasIllegal = null;
     }
 
+    /// <summary>Automatically resolves an expired turn and advances play.</summary>
+    public bool AutoResolveTimedOutTurn(UnoGameState game, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        if (game.Status != GameStatus.InProgress || now < game.TurnDeadlineUtc) return false;
+        game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
+        game.JustDrawnCard = null;
+        var cardsToDraw = game.PendingDrawAmount > 0 ? game.PendingDrawAmount : 1;
+        ClearPendingDrawPenalty(game);
+        DrawCards(game, cardsToDraw);
+        AdvanceTurn(game);
+        return true;
+    }
+
     private void AdvanceTurn(UnoGameState game, int steps = 1)
     {
         for (var i = 0; i < steps; i++)
@@ -460,6 +475,7 @@ public sealed class UnoGameEngine
                 (game.CurrentPlayerIndex + game.TurnDirection + game.Players.Count)
                 % game.Players.Count;
         }
+        game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(UnoGameState.TurnDuration);
     }
 
     private List<UnoCard> DrawCards(
