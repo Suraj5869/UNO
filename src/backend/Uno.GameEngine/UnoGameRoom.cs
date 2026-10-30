@@ -50,7 +50,7 @@ public sealed class UnoGameRoom
     /// <summary>Short code that can be shared to join this room.</summary>
     public string Code { get; }
 
-    public Guid CreatorPlayerId { get; }
+    public Guid CreatorPlayerId { get; private set; }
 
     public int MaximumPlayers { get; }
 
@@ -87,6 +87,50 @@ public sealed class UnoGameRoom
         }
 
         RuleSet = ruleSet;
+    }
+
+    /// <summary>
+    /// Starts a fresh lobby after a completed game, retaining only the player
+    /// who opted into the rematch. That player becomes the new lobby host.
+    /// </summary>
+    public void PrepareRematch(Guid requestingPlayerId)
+    {
+        if (Game?.Status != GameStatus.Completed || Status != UnoRoomStatus.InProgress)
+        {
+            throw new InvalidOperationException("A rematch can only be started after the game has completed.");
+        }
+
+        var returningPlayer = _players.FirstOrDefault(player => player.Id == requestingPlayerId)
+            ?? throw new UnauthorizedAccessException("The player is not a member of this room.");
+
+        _players.Clear();
+        returningPlayer.IsCreator = true;
+        returningPlayer.GamePlayerId = null;
+        _players.Add(returningPlayer);
+
+        CreatorPlayerId = returningPlayer.Id;
+        Game = null;
+        Status = UnoRoomStatus.Waiting;
+    }
+
+    /// <summary>Adds a previous participant who opted into the current rematch lobby.</summary>
+    public UnoRoomPlayer JoinRematch(Guid playerId, string displayName)
+    {
+        EnsureWaiting();
+
+        if (_players.Any(player => player.Id == playerId))
+        {
+            return _players.First(player => player.Id == playerId);
+        }
+
+        if (_players.Count >= MaximumPlayers)
+        {
+            throw new InvalidOperationException("The room is full.");
+        }
+
+        var player = new UnoRoomPlayer(playerId, displayName.Trim(), isCreator: false);
+        _players.Add(player);
+        return player;
     }
 
     public UnoGameState StartGame(Guid requestingPlayerId, Random? random = null)
