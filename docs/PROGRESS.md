@@ -59,6 +59,6 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Replaced the top-positioned turn clock with a circular countdown ring around the active player's avatar, visible to all players including the active player. The warning state begins in the final 10 seconds; server timeout enforcement is unchanged.
 - Added sequenced room-wide `GameAction` events for public card plays, normal draws, and automatic timeout draws. Played-card details are public; draw events contain only player ID and draw count, never hidden card identities.
 - The web client ignores duplicate/older action sequence numbers and renders transient card-flight animations independently of authoritative game-state updates.
-- Automated CI/build and two-browser visual verification are pending.
+- GitHub Actions CI passed for commit `6f1fc1188b8594d5c615b79ac9cf1b6f3e42822a` (backend restore/build/test and web dependency install/build). Manual two-browser visual verification remains pending.
 
 - Extended shared draw animations to accepted draw stacks, accepted Wild Draw Four penalties, Wild Draw Four challenge outcomes (targeting the actual recipient), and missed-UNO catch penalties. Draw-card identities remain private.
