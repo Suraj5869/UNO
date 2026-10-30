@@ -53,3 +53,5 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 - The hub emits sequenced room-wide `GameAction` events for card plays and draws. Played-card details are public; draw events deliberately omit card identity. Timeout-driven draws also emit a draw event.
 - The web client animates card plays from a player's seat toward the discard pile and card backs from the pile toward the active seat. It ignores duplicate/older action sequence numbers and refreshes authoritative state on reconnect rather than replaying old animations.
 - Run backend build/tests and web production build; then smoke-test two browser sessions for synchronized rings, card-play animation, normal draw animation, timeout draw animation, and hidden opponent-hand privacy.
+
+- Shared draw animations also cover accepted draw stacks, Wild Draw Four accept/challenge outcomes, missed-UNO catch penalties, and automatic timeout draws. Verify each recipient is correct and hidden card identities remain private.
