@@ -54,6 +54,6 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 - The web client animates card plays from a player's seat toward the discard pile and card backs from the pile toward the active seat. It ignores duplicate/older action sequence numbers and refreshes authoritative state on reconnect rather than replaying old animations.
 - Run backend build/tests and web production build; then smoke-test two browser sessions for synchronized rings, card-play animation, normal draw animation, timeout draw animation, and hidden opponent-hand privacy.
 
-- Shared draw animations also cover accepted draw stacks, Wild Draw Four accept/challenge outcomes, missed-UNO catch penalties, and automatic timeout draws. Verify each recipient is correct and hidden card identities remain private.
+- Shared draw animations also cover accepted draw stacks, Wild Draw Four accept/challenge outcomes, missed-UNO catch penalties, automatic timeout draws, and Official Rules Draw Two's immediate penalty. Verify each recipient is correct and hidden card identities remain private.
 
-- GitHub Actions passed for commit `6f1fc1188b8594d5c615b79ac9cf1b6f3e42822a`: backend restore/build/test and web install/build succeeded. The two-browser visual smoke test still needs to be run locally.
+- GitHub Actions passed for commit `144b00ad8288839540ef136815509882af2686cc`: backend restore/build/test and web install/build succeeded. The two-browser visual smoke test still needs to be run locally.
