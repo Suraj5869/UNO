@@ -11,10 +11,23 @@ public sealed class UnoTurnTimeoutService(RoomStore roomStore, RoomRealtimePubli
             {
                 try
                 {
-                    var timedOut = roomStore.ExecuteLocked(code, room =>
-                        room.Game is not null && new UnoGameEngine().AutoResolveTimedOutTurn(room.Game, DateTimeOffset.UtcNow));
-                    if (timedOut)
+                    var timeoutAction = roomStore.ExecuteLocked(code, room =>
                     {
+                        var game = room.Game;
+                        if (game is null) return (Resolved: false, Action: (GameActionPayload?)null);
+
+                        var currentGamePlayerId = game.CurrentPlayer.Id;
+                        var drawCount = game.PendingDrawAmount > 0 ? game.PendingDrawAmount : 1;
+                        if (!new UnoGameEngine().AutoResolveTimedOutTurn(game, DateTimeOffset.UtcNow))
+                            return (Resolved: false, Action: (GameActionPayload?)null);
+
+                        var roomPlayerId = room.Players.First(player => player.GamePlayerId == currentGamePlayerId).Id;
+                        return (Resolved: true, Action: (GameActionPayload?)new GameActionPayload("CardsDrawn", roomPlayerId, null, drawCount));
+                    });
+                    if (timeoutAction.Resolved)
+                    {
+                        if (timeoutAction.Action is not null)
+                            await publisher.PublishGameActionAsync(code, timeoutAction.Action);
                         await publisher.PublishRoomAsync(code);
                         await publisher.PublishGameStateAsync(code);
                     }
