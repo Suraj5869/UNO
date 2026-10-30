@@ -169,7 +169,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
                 RoomResponse.From(access.Room),
                 access.PlayerId,
                 access.AccessToken);
-            await publisher.PublishRematchStartedAsync(code);
+            await publisher.PublishRoomAsync(code);
             return Ok(response);
         }
         catch (KeyNotFoundException exception)
