@@ -17,7 +17,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 
 ## Current implementation status
 - Classic 108-card deck, game factory, state model, and gameplay engine are implemented.
-- Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge in both Official and House Rules.
+- Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge in both Official and House Rules. Turns have a 30-second server-enforced deadline; timeout draws one card and skips, or accepts an unresolved penalty and skips.
 - UNO call and missed-call penalty actions are implemented; after a player is reduced to one card, a server-enforced three-second grace period lets them call UNO before opponents may act or catch them. If they miss it, catching them draws two cards.
 - `UnoRuleSet` supports Official and House presets, defaults new games to Official, and stores the selected preset as read-only game state.
 - House Rules support same-type stacking only (Draw Two on Draw Two, Wild Draw Four on Wild Draw Four); mixed stacks are rejected. Draw Two stacks can be accepted for the accumulated penalty. Wild Draw Four can be accepted or challenged in both rule sets; House Rules additionally allow stacking another +4, and a challenge applies to the latest +4 offender.
