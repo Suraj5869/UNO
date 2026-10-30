@@ -16,6 +16,8 @@ public sealed class RoomStore
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, Guid>> _tokensByRoomCode =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<Guid, string>> _rematchCandidatesByRoomCode =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
         CreateRoomRequest request)
@@ -59,6 +61,74 @@ public sealed class RoomStore
             var player = room.Join(displayName);
             _tokensByRoomCode[room.Code].Add(accessToken, player.Id);
             return (room, player.Id, accessToken);
+        }
+    }
+
+    /// <summary>
+    /// Starts or joins the fresh lobby for a completed room. The first player
+    /// becomes its host; other previous participants can opt in while the
+    /// rematch lobby is open.
+    /// </summary>
+    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) PlayAgain(
+        string code,
+        string accessToken)
+    {
+        lock (_sync)
+        {
+            var room = GetByCodeUnsafe(code);
+            if (string.IsNullOrWhiteSpace(accessToken) ||
+                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+            {
+                throw new UnauthorizedAccessException("The room access token is invalid.");
+            }
+
+            if (room.Status == UnoRoomStatus.InProgress && room.Game?.Status == GameStatus.Completed)
+            {
+                var candidates = room.Players
+                    .Where(player => player.Id != playerId)
+                    .ToDictionary(player => player.Id, player => player.DisplayName);
+                room.PrepareRematch(playerId);
+                _rematchCandidatesByRoomCode[room.Code] = candidates;
+            }
+            else if (room.Status == UnoRoomStatus.Waiting)
+            {
+                if (room.Players.Any(player => player.Id == playerId))
+                {
+                    return (room, playerId, accessToken);
+                }
+
+                if (!_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates) ||
+                    !candidates.Remove(playerId, out var displayName))
+                {
+                    throw new InvalidOperationException("This player is no longer eligible to join the rematch lobby.");
+                }
+
+                room.JoinRematch(playerId, displayName);
+            }
+            else
+            {
+                throw new InvalidOperationException("Play Again is available only after a match has completed.");
+            }
+
+            return (room, playerId, accessToken);
+        }
+    }
+
+    /// <summary>Starts a lobby game and closes the previous-rematch opt-in window.</summary>
+    public UnoGameState StartGame(string code, string accessToken)
+    {
+        lock (_sync)
+        {
+            var room = GetByCodeUnsafe(code);
+            if (string.IsNullOrWhiteSpace(accessToken) ||
+                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+            {
+                throw new UnauthorizedAccessException("The room access token is invalid.");
+            }
+
+            var game = room.StartGame(playerId);
+            _rematchCandidatesByRoomCode.Remove(room.Code);
+            return game;
         }
     }
 
