@@ -62,3 +62,11 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - GitHub Actions CI passed for commit `144b00ad8288839540ef136815509882af2686cc` (backend restore/build/test and web dependency install/build). Manual two-browser visual verification remains pending.
 
 - Extended shared draw animations to accepted draw stacks, accepted Wild Draw Four penalties, Wild Draw Four challenge outcomes (targeting the actual recipient), missed-UNO catch penalties, and Official Rules Draw Two's automatic two-card penalty. Draw-card identities remain private.
+
+
+## Wild color clarity and rematch flow
+
+- Added a prominent table-level active-color callout, explicitly labelled `WILD COLOR SELECTED` after a Wild or Wild Draw Four. All clients derive the selected color from server-authoritative `ActiveColor`.
+- Added a completed-game Play Again flow. The first player to opt in creates a fresh lobby and becomes its host; other previous players are returned home unless they opt in while the lobby is still open. The new lobby can be configured and started normally.
+- Added REST `POST /api/rooms/{code}/play-again` and room-wide `RematchStarted` event. Stale non-opted player tokens are revoked when the new game starts.
+- Added engine room tests for rematch reset, host promotion, returning participants, and invalid rematch timing. CI verification is pending.
