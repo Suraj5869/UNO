@@ -90,6 +90,7 @@ public sealed class UnoGameState
         _discardPile[^1];
 
     internal UnoCard? JustDrawnCard { get; set; }
+    public bool CanPassAfterDraw => JustDrawnCard is not null;
 
     internal int? WildDrawFourOffenderIndex { get; set; }
 

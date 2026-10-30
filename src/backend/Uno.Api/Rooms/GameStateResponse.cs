@@ -21,6 +21,7 @@ public sealed record GameStateResponse(
     int PendingDrawAmount,
     CardType? PendingDrawType,
     bool IsWildDrawFourChallengePending,
+    bool CanPassAfterDraw,
     Guid? PlayerAwaitingUnoCallId,
     IReadOnlyList<GamePlayerResponse> Players)
 {
@@ -53,6 +54,7 @@ public sealed record GameStateResponse(
             game.PendingDrawAmount,
             game.PendingDrawType,
             game.IsWildDrawFourChallengePending,
+            game.CanPassAfterDraw,
             awaitingUnoRoomPlayerId,
             room.Players.Select(roomPlayer =>
             {

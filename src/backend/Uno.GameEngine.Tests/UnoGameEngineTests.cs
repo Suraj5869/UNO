@@ -290,6 +290,43 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void ChallengeWildDrawFour_UnderHouseRules_WhenIllegal_MakesOffenderDrawFour()
+    {
+        var game = CreateGameWithWildDrawFourLegality(true, out var card, UnoRuleSet.House);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+        var offenderHandSizeAfterPlay = offender.Hand.Count - 1;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+        var challenger = game.CurrentPlayer;
+        engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(offenderHandSizeAfterPlay + 4, offender.Hand.Count);
+        Assert.Equal(challenger.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+        Assert.Equal(0, game.PendingDrawAmount);
+    }
+
+    [Fact]
+    public void ChallengeWildDrawFour_UnderHouseRules_WhenLegal_MakesChallengerDrawSix()
+    {
+        var game = CreateGameWithWildDrawFourLegality(false, out var card, UnoRuleSet.House);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+        var challenger = game.CurrentPlayer;
+        var challengerHandSize = challenger.Hand.Count;
+        var nextPlayer = game.Players[2];
+        engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(challengerHandSize + 6, challenger.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+        Assert.Equal(0, game.PendingDrawAmount);
+    }
+
+    [Fact]
     public void PlayCard_LeavingOneCard_OpensUnoCallWindow()
     {
         var game = CreateGameWithTwoCardCurrentPlayer(out var card);
@@ -505,13 +542,15 @@ public sealed class UnoGameEngineTests
 
     private static UnoGameState CreateGameWithWildDrawFourLegality(
         bool shouldBeIllegal,
-        out UnoCard card)
+        out UnoCard card,
+        UnoRuleSet ruleSet = UnoRuleSet.Official)
     {
         for (var seed = 0; seed < 500; seed++)
         {
             var game = UnoGameFactory.CreateGame(
                 ["Alice", "Bob", "Charlie"],
-                new Random(seed));
+                new Random(seed),
+                ruleSet);
 
             var candidate = game.CurrentPlayer.Hand.FirstOrDefault(
                 handCard => handCard.Type == CardType.WildDrawFour);

@@ -17,10 +17,10 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 
 ## Current implementation status
 - Classic 108-card deck, game factory, state model, and gameplay engine are implemented.
-- Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge.
+- Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge in both Official and House Rules.
 - UNO call and missed-call penalty actions are implemented; after a player is reduced to one card, a server-enforced three-second grace period lets them call UNO before opponents may act or catch them. If they miss it, catching them draws two cards.
 - `UnoRuleSet` supports Official and House presets, defaults new games to Official, and stores the selected preset as read-only game state.
-- House Rules support same-type stacking only (Draw Two on Draw Two, Wild Draw Four on Wild Draw Four); mixed stacks are rejected. Draw Two stacks can be accepted for the accumulated penalty. A stacked Wild Draw Four retains challenge handling for the latest card; success penalizes the latest offender with the accumulated amount, failure penalizes the challenger with the accumulated amount plus two.
+- House Rules support same-type stacking only (Draw Two on Draw Two, Wild Draw Four on Wild Draw Four); mixed stacks are rejected. Draw Two stacks can be accepted for the accumulated penalty. Wild Draw Four can be accepted or challenged in both rule sets; House Rules additionally allow stacking another +4, and a challenge applies to the latest +4 offender.
 - `UnoGameRoom` and `UnoRoomPlayer` implement in-memory private-room lifecycle: creator, room code, 2–10 capacity, join, creator-only rule selection and start, selected rule passed to game factory, room-to-engine player ID mapping, and settings/membership locked after start. User reports the complete test suite passes.
 - REST API endpoints are implemented in `Uno.Api/Controllers/RoomsController.cs`: `POST /api/rooms`, `GET /api/rooms/{code}`, `POST /api/rooms/{code}/join`, `PUT /api/rooms/{code}/rules`, and `POST /api/rooms/{code}/start`.
 - API responses use room DTOs rather than serializing the full game state, avoiding accidental exposure of hands. Creation/join responses return a random room access token; creator actions use that token rather than trusting a player ID from the request.
@@ -31,7 +31,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant implementation
-The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, clickable draw pile, room-wide `UnoCalled` celebration overlay with immediate local feedback, and a full-screen winner modal showing the winner and match stats. Latest UI changes need CI and two-browser verification. Server engine enforces the grace period; latest changes require build and two-browser testing. See `docs/SIGNALR.md` for the protocol.
+The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, clickable draw pile, contextual Wild Draw Four accept/challenge and House stacking choices, contextual penalty acceptance and pass-after-draw, UNO call/catch, room-wide `UnoCalled` celebration overlay, and a full-screen winner modal. There is no permanent Your Move action bar. Latest UI changes need CI and two-browser verification. See `docs/SIGNALR.md` for the protocol.
 
 ## Branch policy
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.

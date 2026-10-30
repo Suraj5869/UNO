@@ -15,7 +15,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 - Bots and online multiplayer are planned.
 - Server-authoritative rules and filtered per-player state are required.
 - Private rooms will let the creator choose Official Rules or House Rules before the game starts. Rules are locked once play begins.
-- Official Rules do not permit draw stacking. House Rules permit same-type Draw Two and Wild Draw Four stacking only; mixed stacking is rejected.
+- Wild Draw Four can be challenged in both Official and House Rules. Official Rules do not permit draw stacking; House Rules permit same-type Draw Two and Wild Draw Four stacking only; mixed stacking is rejected.
 - Portable documentation is required so work can continue across chats and AI tools.
 
 ## Implemented in the repository
@@ -41,12 +41,12 @@ Phase 4 — Real-time multiplayer backend foundation.
 ## Not yet verified
 
 - GitHub Actions CI passed for commit `249658b016dc4c66bc81d89b63697e68b91771b7`: backend restore/build/test and web dependency install/build all succeeded. Manual browser-based multiplayer smoke tests have not been performed.
-- Wild Draw Four challenge edge cases, draw-pile exhaustion, and card-conservation behavior need more automated coverage.
+- Wild Draw Four challenge success/failure is now covered in both rule sets; draw-pile exhaustion and card-conservation behavior still need more automated coverage.
 - Official initial discard behavior is still temporarily simplified to a number card.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
 - API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
 - The full solution test suite passes in GitHub Actions. Dedicated API/SignalR integration tests and manual multi-client smoke tests remain to be added/run.
-- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, clickable draw pile, room-wide UNO-call celebration overlay with immediate local feedback, and a full-screen winner modal with winner details and match stats. The latest UI changes are committed; CI is running and browser testing remains outstanding. Latest grace-period changes are committed but have not yet been built or browser-tested.
+- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, clickable draw pile, contextual accept/challenge/stack/pass choices (no permanent Your Move action bar), UNO call and catch, room-wide UNO-call celebration overlay, and a full-screen winner modal. The latest contextual-action changes are committed; CI and browser testing are still required.
 
 ## Next task
 

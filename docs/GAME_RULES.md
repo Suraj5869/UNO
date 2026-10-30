@@ -15,7 +15,7 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 
 - A normal card is playable when its color matches the active color, its number matches the top number card, or its action matches the top action card.
 - A Wild card can be played and the player chooses the active color.
-- A Wild Draw Four may be challenged. The engine records whether the player held a card matching the previously active color when the card was played.
+- A Wild Draw Four may be challenged in both Official and House Rules. The engine records whether the player held a card matching the previously active color when the card was played. In Official Rules, the next player may accept (+4 and lose the turn) or challenge; stacking is not allowed. In House Rules, the next player may accept the accumulated penalty, challenge the latest +4, or stack another +4.
 - If a player draws a playable card, they may play that drawn card immediately or pass; they may not play a different card from their hand after drawing.
 - Skip skips the next player.
 - Reverse changes direction. In a two-player game, Reverse acts like Skip, so the player who played it takes another turn.
@@ -29,7 +29,7 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 Private-room creators can choose Official Rules or House Rules before the game starts. The selection is locked once play begins.
 
 - House Rules permit same-type draw-card stacking only: Draw Two on Draw Two and Wild Draw Four on Wild Draw Four. Mixed-type stacking is rejected. The accumulated penalty is passed to the next player; that player may stack the same card type or accept a Draw Two penalty and lose their turn.
-- A stacked Wild Draw Four replaces the prior challenge opportunity: the next player may stack another Wild Draw Four or challenge the latest Wild Draw Four. If the challenge succeeds, the latest offender draws the accumulated stack; if it fails, the challenger draws the accumulated stack plus two cards. This is a project-defined House Rules behavior, not Official Rules.
+- A stacked Wild Draw Four replaces the prior challenge opportunity: the next player may stack another Wild Draw Four, accept the accumulated penalty, or challenge the latest Wild Draw Four. If the challenge succeeds, the latest offender draws the accumulated stack; if it fails, the challenger draws the accumulated stack plus two cards. This stacking behavior is specific to House Rules.
 - `UnoGameRoom` now enforces creator-only rule changes and start, 2–10 room capacity, membership only while waiting, and rule/membership locking once the game starts. This is an in-memory model; API authentication, persistence, expiry, global room-code uniqueness, and real-time transport remain to be implemented.
 
 ## Still to implement or decide
