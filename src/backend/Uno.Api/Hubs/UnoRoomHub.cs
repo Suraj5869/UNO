@@ -48,29 +48,33 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         }));
     }
 
-    public async Task PlayCard(
+    public Task PlayCard(
         string code,
         string accessToken,
         int cardIndex,
         CardColor chosenColor = CardColor.None)
     {
-        await ExecuteAction(code, accessToken, (room, playerId) =>
+        UnoCard? playedCard = null;
+        return ExecuteAction(code, accessToken, (room, playerId) =>
         {
             var game = RequireGame(room);
             var gamePlayerId = GetGamePlayerId(room, playerId);
             var hand = game.Players.First(player => player.Id == gamePlayerId).Hand;
             if (cardIndex < 0 || cardIndex >= hand.Count)
-            {
                 throw new ArgumentOutOfRangeException(nameof(cardIndex), "Card index is outside the player's hand.");
-            }
 
-            new UnoGameEngine().PlayCard(game, gamePlayerId, hand[cardIndex], chosenColor);
-        });
+            var card = hand[cardIndex];
+            playedCard = card;
+            new UnoGameEngine().PlayCard(game, gamePlayerId, card, chosenColor);
+        }, playerId => playedCard is null
+            ? null
+            : new GameActionPayload("CardPlayed", playerId, UnoCardResponse.From(playedCard)));
     }
 
     public Task DrawCard(string code, string accessToken) =>
         ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().DrawCard(RequireGame(room), GetGamePlayerId(room, playerId)));
+            new UnoGameEngine().DrawCard(RequireGame(room), GetGamePlayerId(room, playerId)),
+            playerId => new GameActionPayload("CardDrawn", playerId, null, 1));
 
     public Task PassAfterDraw(string code, string accessToken) =>
         ExecuteAction(code, accessToken, (room, playerId) =>
@@ -114,14 +118,18 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     private async Task ExecuteAction(
         string code,
         string accessToken,
-        Action<UnoGameRoom, Guid> action)
+        Action<UnoGameRoom, Guid> action,
+        Func<Guid, GameActionPayload?>? actionEventFactory = null)
     {
-        roomStore.ExecuteLocked(code, room =>
+        var gameAction = roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             action(room, playerId);
-            return true;
+            return actionEventFactory?.Invoke(playerId);
         });
+
+        if (gameAction is not null)
+            await publisher.PublishGameActionAsync(code, gameAction);
 
         await publisher.PublishRoomAsync(code);
         await publisher.PublishGameStateAsync(code);
