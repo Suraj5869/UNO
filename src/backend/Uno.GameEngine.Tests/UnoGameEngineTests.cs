@@ -259,8 +259,10 @@ public sealed class UnoGameEngineTests
         var challenger = game.CurrentPlayer;
         var challengerHandSize = challenger.Hand.Count;
 
-        engine.ChallengeWildDrawFour(game, challenger.Id);
+        var result = engine.ChallengeWildDrawFour(game, challenger.Id);
 
+        Assert.Equal(offender.Id, result.DrawnPlayerId);
+        Assert.Equal(4, result.DrawCount);
         Assert.Equal(offenderHandSizeAfterPlay + 4, offender.Hand.Count);
         Assert.Equal(challengerHandSize, challenger.Hand.Count);
         Assert.Equal(challenger.Id, game.CurrentPlayer.Id);
@@ -282,8 +284,10 @@ public sealed class UnoGameEngineTests
         var challengerHandSize = challenger.Hand.Count;
         var nextPlayer = game.Players[2];
 
-        engine.ChallengeWildDrawFour(game, challenger.Id);
+        var result = engine.ChallengeWildDrawFour(game, challenger.Id);
 
+        Assert.Equal(challenger.Id, result.DrawnPlayerId);
+        Assert.Equal(6, result.DrawCount);
         Assert.Equal(challengerHandSize + 6, challenger.Hand.Count);
         Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
         Assert.False(game.IsWildDrawFourChallengePending);
