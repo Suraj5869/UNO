@@ -122,6 +122,8 @@ export default function App() {
       if (isReturning) {
         setRoom(value);
         setGame(null);
+        setWildIndex(null);
+        setGameAction(null);
         setAccess(old => {
           if (!old) return old;
           const next = { ...old, room: value };
