@@ -31,7 +31,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant implementation
-The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, and responsive layout. See `docs/SIGNALR.md` for the protocol.
+The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, clickable draw pile, a room-wide `UnoCalled` animation, a game-complete winner panel, and responsive layout. The latest UI/hub changes are committed but still require build and two-browser testing. See `docs/SIGNALR.md` for the protocol.
 
 ## Branch policy
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
