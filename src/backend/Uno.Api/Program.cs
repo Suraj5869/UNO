@@ -38,6 +38,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<RoomStore>();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<RoomRealtimePublisher>();
+builder.Services.AddHostedService<UnoTurnTimeoutService>();
 
 var app = builder.Build();
 
