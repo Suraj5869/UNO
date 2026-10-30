@@ -15,6 +15,7 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 
 - A normal card is playable when its color matches the active color, its number matches the top number card, or its action matches the top action card.
 - A Wild card can be played and the player chooses the active color.
+- Each player's turn has a 30-second server-enforced deadline. If it expires during a normal turn, the player automatically draws one card and their turn is skipped. If a draw penalty or Wild Draw Four decision is unresolved, timeout automatically accepts the penalty and skips the turn.
 - A Wild Draw Four may be challenged in both Official and House Rules. The engine records whether the player held a card matching the previously active color when the card was played. In Official Rules, the next player may accept (+4 and lose the turn) or challenge; stacking is not allowed. In House Rules, the next player may accept the accumulated penalty, challenge the latest +4, or stack another +4.
 - If a player draws a playable card, they may play that drawn card immediately or pass; they may not play a different card from their hand after drawing.
 - Skip skips the next player.
