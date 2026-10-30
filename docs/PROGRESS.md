@@ -25,7 +25,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 - Game state and player models.
 - Gameplay engine methods for playing cards, drawing, passing after a playable draw, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge flows.
 - Tests covering core card play, invalid moves, current-player enforcement, two-player Reverse, Draw Two, and Wild Draw Four challenge setup/acceptance.
-- UNO call and missed-call engine actions: a player who is reduced to one card can call UNO; another participant can catch a missed call during the response window, causing a two-card penalty.
+- UNO call and missed-call engine actions: a player reduced to one card gets a server-enforced three-second grace period to call UNO; other players cannot act or catch them during this period. If they do not call, a participant can catch the missed call for a two-card penalty.
 - Explicit `UnoRuleSet.Official` and `UnoRuleSet.House` presets; new games default to Official and persist the selected preset in a read-only game-state property.
 - House Rules same-type draw stacking: Draw Two stacks accumulate by two; Wild Draw Four stacks accumulate by four and retain challenge handling for the latest Wild Draw Four. Players can accept a pending Draw Two stack to draw the accumulated amount and lose their turn.
 - Tests added for UNO calls, missed-call penalties, and expiry of the call window when the next player begins an action.
@@ -46,7 +46,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
 - API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
 - The full solution test suite passes in GitHub Actions. Dedicated API/SignalR integration tests and manual multi-client smoke tests remain to be added/run.
-- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, clickable draw pile, UNO-call celebration broadcast, and a game-complete winner panel. Latest UI changes are committed but have not yet been built or browser-tested.
+- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, clickable draw pile, UNO-call celebration broadcast, game-complete winner panel, and a three-second waiting message before the catch action appears. Latest grace-period changes are committed but have not yet been built or browser-tested.
 
 ## Next task
 
