@@ -119,6 +119,52 @@ public sealed class UnoGameRoomTests
     }
 
     [Fact]
+    public void PrepareRematch_ResetsRoomAndPromotesOptedInPlayerToHost()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var bob = room.Join("Bob");
+        room.Join("Charlie");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+        room.Game!.Status = GameStatus.Completed;
+
+        room.PrepareRematch(bob.Id);
+
+        Assert.Equal(UnoRoomStatus.Waiting, room.Status);
+        Assert.Null(room.Game);
+        Assert.Single(room.Players);
+        Assert.Equal(bob.Id, room.CreatorPlayerId);
+        Assert.True(room.Players[0].IsCreator);
+        Assert.Equal(bob.Id, room.Players[0].Id);
+        Assert.Null(room.Players[0].GamePlayerId);
+    }
+
+    [Fact]
+    public void JoinRematch_AddsPreviousPlayerWithoutReplacingNewHost()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var bob = room.Join("Bob");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+        room.Game!.Status = GameStatus.Completed;
+        room.PrepareRematch(bob.Id);
+
+        var alice = room.JoinRematch(room.Players[0].Id == bob.Id ? Guid.NewGuid() : Guid.Empty, "Alice");
+        // The opted-in player remains the host when another player joins.
+        Assert.True(room.Players[0].IsCreator);
+        Assert.False(alice.IsCreator);
+        Assert.Equal(2, room.Players.Count);
+    }
+
+    [Fact]
+    public void PrepareRematch_WhenGameIsNotCompleted_Throws()
+    {
+        var room = new UnoGameRoom("Alice");
+        room.Join("Bob");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+
+        Assert.Throws<InvalidOperationException>(() => room.PrepareRematch(room.CreatorPlayerId));
+    }
+
+    [Fact]
     public void CreateRoom_WithHouseRules_PreservesSelectedPreset()
     {
         var room = new UnoGameRoom("Alice", ruleSet: UnoRuleSet.House);
