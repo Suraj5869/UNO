@@ -57,3 +57,9 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 - Shared draw animations also cover accepted draw stacks, Wild Draw Four accept/challenge outcomes, missed-UNO catch penalties, automatic timeout draws, and Official Rules Draw Two's immediate penalty. Verify each recipient is correct and hidden card identities remain private.
 
 - GitHub Actions passed for commit `144b00ad8288839540ef136815509882af2686cc`: backend restore/build/test and web install/build succeeded. The two-browser visual smoke test still needs to be run locally.
+
+
+## Wild color and rematch behavior
+- The game table displays a prominent `ACTIVE COLOR` callout, labelled `WILD COLOR SELECTED` when the top discard is Wild/Wild Draw Four. It is based on server-filtered `GameStateResponse.ActiveColor` and visible to every player.
+- Completed games show Play Again and Back to Home. `POST /api/rooms/{code}/play-again` resets the room into a new waiting lobby on first opt-in and promotes that player to creator. The first opt-in player is the only participant initially; previous players may opt in while the lobby remains open. `RematchStarted(RoomResponse)` tells all previous clients whether they are in the new lobby; non-opted clients clear their session and return home. Starting the new game closes the opt-in window and revokes tokens for non-opted players.
+- Verify with two or more browser sessions: wild color selection updates all clients; first Play Again returns caller to lobby and sends non-opted clients home; another player opting in joins the same lobby; new host can change rules/start; old non-opted tokens cannot access the new game.
