@@ -68,3 +68,5 @@ Clients ignore duplicate/older sequence numbers and use events only for transien
 
 
 Draw-action events are also emitted when a player accepts a House Rules draw stack, accepts a Wild Draw Four, resolves a Wild Draw Four challenge (the event targets the player who actually receives the penalty), or is caught for a missed UNO call. Automatic turn-timeout draws use the same event. These events contain counts and room-level recipient IDs only; they never reveal drawn cards.
+
+Official Rules Draw Two plays also include the automatically affected next player and the two-card count in the same `CardPlayed` event, so clients can animate the public play and its immediate penalty together without revealing the drawn cards.
