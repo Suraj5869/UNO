@@ -460,9 +460,19 @@ public sealed class UnoGameEngine
         game.PlayerAwaitingUnoCallId = null;
         game.UnoCallDeadlineUtc = null;
         game.JustDrawnCard = null;
+        var wildDrawFourOffenderIndex = game.WildDrawFourOffenderIndex;
+        var offenderHadNoCards = wildDrawFourOffenderIndex.HasValue &&
+            game.Players[wildDrawFourOffenderIndex.Value].Hand.Count == 0;
         var cardsToDraw = game.PendingDrawAmount > 0 ? game.PendingDrawAmount : 1;
         ClearPendingDrawPenalty(game);
         DrawCards(game, cardsToDraw);
+
+        if (offenderHadNoCards)
+        {
+            game.Status = GameStatus.Completed;
+            return true;
+        }
+
         AdvanceTurn(game);
         return true;
     }
