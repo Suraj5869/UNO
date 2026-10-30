@@ -49,3 +49,10 @@ Private-room creators can choose Official Rules or House Rules before the game s
 4. Other variants after requirements and licensing review.
 
 Each variant needs its own deck definition, supported player range, rule tests, and clear state-transition rules. Shared infrastructure must not assume all variants use the same deck or special actions.
+
+
+## Rematches
+
+After a game completes, each participant can choose **Play Again** or **Back to Home**. The first player to choose Play Again creates a fresh pre-match lobby using the same room code and settings, becomes its host, and returns alone initially. Other previous participants can opt in while the lobby remains open; those who do not opt in are returned home. The new game starts only when the new host chooses Start Game with at least two participants. The completed game state is discarded, and players who did not join the rematch cannot use their old room token to access the new game.
+
+The active color chosen by a Wild or Wild Draw Four is shown as a prominent table-level indicator to every player. It is derived from the server-authoritative `ActiveColor` in each filtered game-state update.
