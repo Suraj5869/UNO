@@ -327,6 +327,23 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void AutoResolveTimedOutTurn_DrawsOneCardAndAdvancesTurn()
+    {
+        var game = UnoGameFactory.CreateGame(["Alice", "Bob"], new Random(17));
+        var engine = new UnoGameEngine();
+        var timedOutPlayer = game.CurrentPlayer;
+        var nextPlayer = game.Players[1];
+        var originalHandSize = timedOutPlayer.Hand.Count;
+        var deadline = game.TurnDeadlineUtc;
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline.AddTicks(-1)));
+        Assert.Equal(timedOutPlayer.Id, game.CurrentPlayer.Id);
+        Assert.True(engine.AutoResolveTimedOutTurn(game, deadline.AddSeconds(1)));
+        Assert.Equal(originalHandSize + 1, timedOutPlayer.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.True(game.TurnDeadlineUtc > deadline);
+    }
+
+    [Fact]
     public void PlayCard_LeavingOneCard_OpensUnoCallWindow()
     {
         var game = CreateGameWithTwoCardCurrentPlayer(out var card);
