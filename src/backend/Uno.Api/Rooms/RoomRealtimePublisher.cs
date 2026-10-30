@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using Uno.Api.Hubs;
 
@@ -10,6 +11,15 @@ public sealed class RoomRealtimePublisher(
     RoomStore roomStore,
     IHubContext<UnoRoomHub> hubContext)
 {
+    private readonly ConcurrentDictionary<string, long> _eventSequences = new(StringComparer.OrdinalIgnoreCase);
+
+    public async Task PublishGameActionAsync(string code, GameActionPayload action)
+    {
+        var sequence = _eventSequences.AddOrUpdate(code, 1, (_, current) => current + 1);
+        var gameAction = new GameActionEvent(sequence, action.Action, action.PlayerId, action.Card, action.DrawCount, DateTimeOffset.UtcNow);
+        await hubContext.Clients.Group(RoomGroup(code)).SendAsync("GameAction", gameAction);
+    }
+
     public static string RoomGroup(string code) => $"uno-room:{code.Trim().ToUpperInvariant()}";
 
     public static string PlayerGroup(string code, Guid playerId) =>
@@ -45,3 +55,6 @@ public sealed class RoomRealtimePublisher(
         }
     }
 }
+
+public sealed record GameActionPayload(string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount = 0);
+public sealed record GameActionEvent(long EventSequence, string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount, DateTimeOffset OccurredAtUtc);
