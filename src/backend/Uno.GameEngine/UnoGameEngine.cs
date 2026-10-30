@@ -249,7 +249,7 @@ public sealed class UnoGameEngine
     /// the color active before the Wild Draw Four, the challenge succeeds
     /// and the offender draws four. Otherwise, the challenger draws six.
     /// </summary>
-    public void ChallengeWildDrawFour(UnoGameState game, Guid playerId)
+    public WildDrawFourChallengeResult ChallengeWildDrawFour(UnoGameState game, Guid playerId)
     {
         ArgumentNullException.ThrowIfNull(game);
         EnsureGameInProgress(game);
@@ -268,19 +268,21 @@ public sealed class UnoGameEngine
         {
             DrawCards(game, penaltyAmount, offenderIndex);
             // The challenger keeps the turn after a successful challenge.
-            return;
+            return new WildDrawFourChallengeResult(game.Players[offenderIndex].Id, penaltyAmount);
         }
 
         // A failed challenge adds the standard two-card challenge penalty
         // on top of any accumulated Wild Draw Four stack.
-        DrawCards(game, penaltyAmount + 2);
+        var failedChallengePenalty = penaltyAmount + 2;
+        DrawCards(game, failedChallengePenalty);
         if (offenderHadNoCards)
         {
             game.Status = GameStatus.Completed;
-            return;
+            return new WildDrawFourChallengeResult(playerId, failedChallengePenalty);
         }
 
         AdvanceTurn(game);
+        return new WildDrawFourChallengeResult(playerId, failedChallengePenalty);
     }
 
     /// <summary>
@@ -538,3 +540,7 @@ public sealed class UnoGameEngine
         game.MutableDrawPile.AddRange(recyclableCards);
     }
 }
+
+
+/// <summary>Identifies the recipient and size of a resolved Wild Draw Four penalty.</summary>
+public sealed record WildDrawFourChallengeResult(Guid DrawnPlayerId, int DrawCount);
