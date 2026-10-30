@@ -46,3 +46,10 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 - Bots must use the same legal-action validation path as humans.
 - Keep docs and progress truthful.
 - Never commit secrets.
+
+
+## Latest multiplayer table interaction work
+- The top-positioned countdown was replaced with a circular progress ring around the active player's avatar, including the local player's avatar. Every client derives it from the same server-issued deadline; the client timer is visual only.
+- The hub emits sequenced room-wide `GameAction` events for card plays and draws. Played-card details are public; draw events deliberately omit card identity. Timeout-driven draws also emit a draw event.
+- The web client animates card plays from a player's seat toward the discard pile and card backs from the pile toward the active seat. It ignores duplicate/older action sequence numbers and refreshes authoritative state on reconnect rather than replaying old animations.
+- Run backend build/tests and web production build; then smoke-test two browser sessions for synchronized rings, card-play animation, normal draw animation, timeout draw animation, and hidden opponent-hand privacy.
