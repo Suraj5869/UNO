@@ -91,6 +91,7 @@ public sealed class UnoGameState
 
     internal UnoCard? JustDrawnCard { get; set; }
     public bool CanPassAfterDraw => JustDrawnCard is not null;
+    public UnoCard? JustDrawnCardForCurrentPlayer => JustDrawnCard;
 
     internal int? WildDrawFourOffenderIndex { get; set; }
 
