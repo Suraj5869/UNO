@@ -1,6 +1,6 @@
 # Progress Tracker
 
-Last updated: 2026-10-29
+Last updated: 2026-10-30
 
 ## Current phase
 
@@ -46,7 +46,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 - UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
 - API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
 - The full solution test suite passes in GitHub Actions. Dedicated API/SignalR integration tests and manual multi-client smoke tests remain to be added/run.
-- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, and a responsive layout. Client build and browser smoke tests have not yet run.
+- First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, draw/pass, draw-penalty acceptance, Wild Draw Four accept/challenge, UNO call and catch, clickable draw pile, UNO-call celebration broadcast, and a game-complete winner panel. Latest UI changes are committed but have not yet been built or browser-tested.
 
 ## Next task
 
