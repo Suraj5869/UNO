@@ -25,6 +25,15 @@ public sealed class RoomRealtimePublisher(
     public static string PlayerGroup(string code, Guid playerId) =>
         $"{RoomGroup(code)}:player:{playerId:N}";
 
+    public async Task PublishRematchStartedAsync(string code)
+    {
+        var room = roomStore.ExecuteLocked(code, currentRoom => RoomResponse.From(currentRoom));
+        await hubContext.Clients.Group(RoomGroup(code))
+            .SendAsync("RematchStarted", room);
+        await hubContext.Clients.Group(RoomGroup(code))
+            .SendAsync("RoomUpdated", room);
+    }
+
     public async Task PublishRoomAsync(string code)
     {
         var room = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
