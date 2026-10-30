@@ -23,6 +23,7 @@ public sealed record GameStateResponse(
     bool IsWildDrawFourChallengePending,
     bool CanPassAfterDraw,
     UnoCardResponse? JustDrawnCard,
+    DateTimeOffset TurnDeadlineUtc,
     Guid? PlayerAwaitingUnoCallId,
     IReadOnlyList<GamePlayerResponse> Players)
 {
@@ -61,6 +62,7 @@ public sealed record GameStateResponse(
             game.IsWildDrawFourChallengePending,
             game.CanPassAfterDraw,
             justDrawnCard,
+            game.TurnDeadlineUtc,
             awaitingUnoRoomPlayerId,
             room.Players.Select(roomPlayer =>
             {
