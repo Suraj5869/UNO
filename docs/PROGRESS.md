@@ -60,3 +60,5 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Added sequenced room-wide `GameAction` events for public card plays, normal draws, and automatic timeout draws. Played-card details are public; draw events contain only player ID and draw count, never hidden card identities.
 - The web client ignores duplicate/older action sequence numbers and renders transient card-flight animations independently of authoritative game-state updates.
 - Automated CI/build and two-browser visual verification are pending.
+
+- Extended shared draw animations to accepted draw stacks, accepted Wild Draw Four penalties, Wild Draw Four challenge outcomes (targeting the actual recipient), and missed-UNO catch penalties. Draw-card identities remain private.
