@@ -142,15 +142,16 @@ public sealed class UnoGameRoomTests
     public void JoinRematch_AddsPreviousPlayerWithoutReplacingNewHost()
     {
         var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var alice = room.Players[0];
         var bob = room.Join("Bob");
         room.StartGame(room.CreatorPlayerId, new Random(123));
         room.Game!.Status = GameStatus.Completed;
         room.PrepareRematch(bob.Id);
 
-        var alice = room.JoinRematch(room.Players[0].Id == bob.Id ? Guid.NewGuid() : Guid.Empty, "Alice");
+        var returningAlice = room.JoinRematch(alice.Id, alice.DisplayName);
         // The opted-in player remains the host when another player joins.
         Assert.True(room.Players[0].IsCreator);
-        Assert.False(alice.IsCreator);
+        Assert.False(returningAlice.IsCreator);
         Assert.Equal(2, room.Players.Count);
     }
 
