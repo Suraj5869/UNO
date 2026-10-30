@@ -109,21 +109,9 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         return ExecuteAction(code, accessToken, (room, playerId) =>
         {
             var game = RequireGame(room);
-            var offenderIndex = game.WildDrawFourOffenderIndex
-                ?? throw new InvalidOperationException("There is no pending Wild Draw Four offender.");
-            if (game.WildDrawFourWasIllegal == true)
-            {
-                var offenderGamePlayerId = game.Players[offenderIndex].Id;
-                drawTargetPlayerId = room.Players.First(player => player.GamePlayerId == offenderGamePlayerId).Id;
-                drawCount = game.PendingDrawAmount;
-            }
-            else
-            {
-                drawTargetPlayerId = playerId;
-                drawCount = game.PendingDrawAmount + 2;
-            }
-
-            new UnoGameEngine().ChallengeWildDrawFour(game, GetGamePlayerId(room, playerId));
+            var result = new UnoGameEngine().ChallengeWildDrawFour(game, GetGamePlayerId(room, playerId));
+            drawTargetPlayerId = room.Players.First(player => player.GamePlayerId == result.DrawnPlayerId).Id;
+            drawCount = result.DrawCount;
         }, _ => drawTargetPlayerId is null
             ? null
             : new GameActionPayload("CardsDrawn", drawTargetPlayerId.Value, null, drawCount));
