@@ -46,6 +46,7 @@ export default function App() {
   const [clockNow, setClockNow] = useState(Date.now());
   const [gameAction, setGameAction] = useState<GameActionEvent | null>(null);
   const lastActionSequence = useRef(0);
+  const completedGameRef = useRef(false);
 
   const api = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
@@ -106,7 +107,7 @@ export default function App() {
     lastActionSequence.current = 0;
     const connection = new HubConnectionBuilder().withUrl(HUB).withAutomaticReconnect().configureLogging(LogLevel.Warning).build();
     connection.on('RoomUpdated', (value: Room) => {
-      if (!active) return;
+      if (!active || completedGameRef.current) return;
       setRoom(value);
       setAccess(old => {
         if (!old) return old;
@@ -115,32 +116,7 @@ export default function App() {
         return next;
       });
     });
-    connection.on('GameStateUpdated', (value: Game) => { if (active) setGame(value); });
-    connection.on('RematchStarted', (value: Room) => {
-      if (!active) return;
-      const isReturning = value.players.some(player => player.id === access.playerId);
-      if (isReturning) {
-        setRoom(value);
-        setGame(null);
-        setWildIndex(null);
-        setGameAction(null);
-        setAccess(old => {
-          if (!old) return old;
-          const next = { ...old, room: value };
-          sessionStorage.setItem('uno-room-access', JSON.stringify(next));
-          return next;
-        });
-        setNotice('You are in the rematch lobby. Invite your friends or wait for them to join.');
-      } else {
-        sessionStorage.removeItem('uno-room-access');
-        setAccess(null);
-        setRoom(null);
-        setGame(null);
-        setHub(null);
-        setNotice('The match has ended. You are back at the home screen.');
-      }
-    });
-
+    connection.on('GameStateUpdated', (value: Game) => { if (active) { completedGameRef.current = value.gameStatus === 1; setGame(value); } });
     connection.on('GameAction', (event: GameActionEvent) => {
       if (!active || event.eventSequence <= lastActionSequence.current) return;
       lastActionSequence.current = event.eventSequence;
@@ -220,7 +196,10 @@ export default function App() {
         body: JSON.stringify({ accessToken: access.accessToken })
       });
       keepAccess(value);
+      completedGameRef.current = false;
       setGame(null);
+      setWildIndex(null);
+      setGameAction(null);
       setNotice('You are in the rematch lobby. Invite your friends or wait for them to join.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not prepare the rematch lobby.');
@@ -282,9 +261,9 @@ export default function App() {
           <div className="panel players-panel"><div className="panel-title"><div><span className="mini-label">THE TABLE</span><h2>Players <span className="muted-count">{room.players.length}/{room.maximumPlayers}</span></h2></div><span className="waiting-tag"><i /> Waiting</span></div><div className="player-list">{room.players.map((p, i) => <div className="player-row" key={p.id}><div className={'avatar avatar-' + (i % 4)}>{p.displayName.slice(0,1).toUpperCase()}</div><div className="player-info"><strong>{p.displayName}{p.id === access.playerId ? ' (you)' : ''}</strong><span>{p.isCreator ? 'Room host' : 'Player'}</span></div>{p.isCreator && <span className="host-tag">HOST</span>}</div>)}{Array.from({ length: Math.max(0, room.maximumPlayers - room.players.length) }).map((_, i) => <div className="player-row empty-seat" key={i}><div className="avatar avatar-empty">+</div><div className="player-info"><strong>Open seat</strong><span>Share the room code to invite</span></div></div>)}</div><div className="invite-strip"><span className="invite-icon">↗</span><div><strong>Bring your crew</strong><p>Send them the room code to join this table.</p></div><button className="text-button" onClick={() => void copyCode(room.code, setNotice)}>Copy code</button></div></div>
           <div className="panel settings-panel"><span className="mini-label">ROOM SETTINGS</span><h2>Set the vibe.</h2><p className="panel-description">Choose how this game plays. Settings lock once the host starts the match.</p><label className="rule-option"><input type="radio" checked={room.ruleSet === 0} disabled={!isHost || busy} onChange={() => void changeRule(0)} /><span className="rule-radio" /><span className="rule-copy"><strong>Official Rules</strong><small>No stacking. Draw penalties must be taken.</small></span><span className="rule-check">✓</span></label><label className="rule-option"><input type="radio" checked={room.ruleSet === 1} disabled={!isHost || busy} onChange={() => void changeRule(1)} /><span className="rule-radio" /><span className="rule-copy"><strong>House Rules</strong><small>Stack matching +2 on +2 and +4 on +4.</small></span><span className="rule-check">✓</span></label>{!isHost && <p className="host-note">Only the room host can change rules or start the game.</p>}<div className="start-area"><div><strong>{room.players.length < 2 ? 'Waiting for one more player' : 'All set?'}</strong><span>{room.players.length < 2 ? 'At least 2 players are required.' : 'Everyone is in. Let the chaos begin.'}</span></div><button className="button button-primary" onClick={() => void startGame()} disabled={!isHost || room.players.length < 2 || busy}>{busy ? 'Starting…' : 'Start game'} <span>→</span></button></div></div>
         </div> : game ? <div className="game-layout">
-          <div className="panel game-panel"><div className="game-toolbar"><div><span className="mini-label">MATCH IN PROGRESS</span><h2>{game.gameStatus === 1 ? 'Game complete' : myTurn ? 'Your turn!' : 'Waiting on ' + (game.players.find(p => p.playerId === game.currentPlayerId)?.displayName || 'next player')}</h2></div><div className="turn-indicator"><span className={'active-color-dot ' + colorClass(game.activeColor)} />{colorName(game.activeColor)} active</div></div>
+          <div className="panel game-panel"><div className="game-toolbar"><div><span className="mini-label">MATCH IN PROGRESS</span><h2>{game.gameStatus === 1 ? 'Game complete' : myTurn ? 'Your turn!' : 'Waiting on ' + (game.players.find(p => p.playerId === game.currentPlayerId)?.displayName || 'next player')}</h2></div></div>
             <div className="table-felt"><div className="opponents">{game.players.filter(p => p.playerId !== game.viewerPlayerId).map(p => <div className={'opponent ' + (p.playerId === game.currentPlayerId ? 'is-turn' : '')} key={p.playerId}><TurnAvatar label={p.displayName.slice(0,1).toUpperCase()} active={p.playerId === game.currentPlayerId} progress={turnProgress} urgent={turnUrgent} className="opponent-avatar" /><strong>{p.displayName}</strong><span>{p.cardCount} cards</span><div className="back-cards">{Array.from({ length: Math.min(p.cardCount, 5) }).map((_, i) => <span key={i} style={{ transform: 'translateX(' + (i * 7) + 'px) rotate(' + ((i - 2) * 7) + 'deg)' }} />)}</div>{p.playerId === game.currentPlayerId && <em>PLAYING</em>}</div>)}</div>
-              <div className="center-piles"><button type="button" className="pile-count draw-pile-button" disabled={!myTurn || game.pendingDrawAmount > 0 || game.isWildDrawFourChallengePending || game.canPassAfterDraw || game.gameStatus === 1 || game.drawPileCount === 0 || busy} onClick={() => void act('DrawCard')} aria-label={myTurn ? "Draw one card from the draw pile" : "Wait for your turn to draw"} title={myTurn ? "Click to draw one card" : "Wait for your turn"}><span className="card-back">UNO</span><strong>{game.drawPileCount}</strong><small>{myTurn ? "DRAW · CLICK" : "DRAW PILE"}</small></button>{gameAction && <div className="action-animation-layer" key={gameAction.eventSequence} aria-hidden="true">{gameAction.action === 'CardPlayed' && gameAction.card ? <><div className={'action-flight play-flight ' + (gameAction.playerId === game.viewerPlayerId ? 'from-self' : 'from-opponent') + ' ' + colorClass(gameAction.card.color)}><span className="card-corner">{cardLabel(gameAction.card)}</span><b>{cardLabel(gameAction.card)}</b><span className="card-logo">UNO</span></div>{gameAction.drawCount > 0 && gameAction.drawTargetPlayerId && <div className={'action-flight draw-flight ' + (gameAction.drawTargetPlayerId === game.viewerPlayerId ? 'to-self' : 'to-opponent')}><span className="card-back">UNO</span><strong>+{gameAction.drawCount}</strong></div>}</> : <div className={'action-flight draw-flight ' + (gameAction.playerId === game.viewerPlayerId ? 'to-self' : 'to-opponent')}><span className="card-back">UNO</span>{gameAction.drawCount > 1 && <strong>+{gameAction.drawCount}</strong>}</div>}</div>}<div className={'active-color-callout ' + colorClass(game.activeColor)}><span>{game.topDiscard.type === 4 || game.topDiscard.type === 5 ? 'WILD COLOR SELECTED' : 'ACTIVE COLOR'}</span><strong>{colorName(game.activeColor)}</strong></div><div className="top-card-wrap"><span className="pile-caption">TOP DISCARD</span><div className={'uno-card top-card ' + colorClass(game.topDiscard.color)}><span className="card-corner">{cardLabel(game.topDiscard)}</span><b>{cardLabel(game.topDiscard)}</b><span className="card-logo">UNO</span></div></div><div className="pile-count direction-count"><strong>{game.turnDirection === 1 ? '↻' : '↺'}</strong><small>DIRECTION</small><span>{game.pendingDrawAmount > 0 ? '+' + game.pendingDrawAmount + ' pending' : 'No penalty'}</span></div></div>
+              <div className="center-piles"><button type="button" className="pile-count draw-pile-button" disabled={!myTurn || game.pendingDrawAmount > 0 || game.isWildDrawFourChallengePending || game.canPassAfterDraw || game.gameStatus === 1 || game.drawPileCount === 0 || busy} onClick={() => void act('DrawCard')} aria-label={myTurn ? "Draw one card from the draw pile" : "Wait for your turn to draw"} title={myTurn ? "Click to draw one card" : "Wait for your turn"}><span className="card-back">UNO</span><strong>{game.drawPileCount}</strong><small>{myTurn ? "DRAW · CLICK" : "DRAW PILE"}</small></button>{gameAction && <div className="action-animation-layer" key={gameAction.eventSequence} aria-hidden="true">{gameAction.action === 'CardPlayed' && gameAction.card ? <><div className={'action-flight play-flight ' + (gameAction.playerId === game.viewerPlayerId ? 'from-self' : 'from-opponent') + ' ' + colorClass(gameAction.card.color)}><span className="card-corner">{cardLabel(gameAction.card)}</span><b>{cardLabel(gameAction.card)}</b><span className="card-logo">UNO</span></div>{gameAction.drawCount > 0 && gameAction.drawTargetPlayerId && <div className={'action-flight draw-flight ' + (gameAction.drawTargetPlayerId === game.viewerPlayerId ? 'to-self' : 'to-opponent')}><span className="card-back">UNO</span><strong>+{gameAction.drawCount}</strong></div>}</> : <div className={'action-flight draw-flight ' + (gameAction.playerId === game.viewerPlayerId ? 'to-self' : 'to-opponent')}><span className="card-back">UNO</span>{gameAction.drawCount > 1 && <strong>+{gameAction.drawCount}</strong>}</div>}</div>}<div className="top-card-wrap"><span className="pile-caption">TOP DISCARD</span><div className={'uno-card top-card ' + colorClass(game.topDiscard.color) + (game.topDiscard.type === 4 || game.topDiscard.type === 5 ? ' selected-wild-color-' + colorClass(game.activeColor) : '')}><span className="card-corner">{cardLabel(game.topDiscard)}</span><b>{cardLabel(game.topDiscard)}</b><span className="card-logo">UNO</span></div></div><div className="pile-count direction-count"><strong>{game.turnDirection === 1 ? '↻' : '↺'}</strong><small>DIRECTION</small><span>{game.pendingDrawAmount > 0 ? '+' + game.pendingDrawAmount + ' pending' : 'No penalty'}</span></div></div>
               {catchTarget && <div className="challenge-banner uno-banner">{catchUnoReady ? <>{catchTarget.displayName} missed UNO! <button onClick={() => void act('CatchUno', catchTarget.playerId)}>Catch UNO (+2 cards)</button></> : <>{catchTarget.displayName} has 1 card left — waiting 3 seconds for UNO…</>}</div>}
               <div className="my-seat"><div className="my-seat-label"><div className="my-seat-identity"><TurnAvatar label={viewer?.displayName.slice(0,1).toUpperCase() || 'Y'} active={myTurn} progress={turnProgress} urgent={turnUrgent} className="my-seat-avatar" /><div><span className="mini-label">{myTurn ? 'YOUR TURN' : 'YOUR HAND'}</span><h3>{viewer?.hand?.length ?? 0} cards <span>· {myTurn ? 'Play before time runs out' : 'Waiting for your turn'}</span></h3></div></div><button className="uno-call-button" disabled={(viewer?.hand?.length ?? 0) !== 1} onClick={() => void act('CallUno')}>UNO!</button></div><div className="hand-cards">{(viewer?.hand ?? []).map((card, i) => <button key={card.color + '-' + card.type + '-' + card.number + '-' + i} className={'uno-card hand-card ' + colorClass(card.color)} disabled={!canPlayCard(card)} onClick={() => play(i, card)} title={'Play ' + colorName(card.color) + ' ' + cardLabel(card)}><span className="card-corner">{cardLabel(card)}</span><b>{cardLabel(card)}</b><span className="card-logo">UNO</span></button>)}</div>
                 {wildIndex !== null && <div className="color-picker"><strong>Choose a color</strong>{([1,2,3,4] as Color[]).map(c => <button key={c} className={'color-choice ' + colorClass(c)} onClick={() => chooseColor(c)}>{colorName(c)}</button>)}<button className="text-button" onClick={() => setWildIndex(null)}>Cancel</button></div>}
