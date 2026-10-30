@@ -65,3 +65,6 @@ The server broadcasts a room-wide `GameAction` event after a successful authorit
 - `GameAction(CardDrawn)` / `GameAction(CardsDrawn)`: includes only the target player ID and number of cards drawn. It never includes card identities, including for opponents.
 
 Clients ignore duplicate/older sequence numbers and use events only for transient animation. `GameStateUpdated` remains authoritative. On reconnect, fetch the latest filtered state and do not replay old animations. The web client renders the shared countdown ring from the server-issued deadline; timeout enforcement remains server-side.
+
+
+Draw-action events are also emitted when a player accepts a House Rules draw stack, accepts a Wild Draw Four, resolves a Wild Draw Four challenge (the event targets the player who actually receives the penalty), or is caught for a missed UNO call. Automatic turn-timeout draws use the same event. These events contain counts and room-level recipient IDs only; they never reveal drawn cards.
