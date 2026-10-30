@@ -55,3 +55,5 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 - Run backend build/tests and web production build; then smoke-test two browser sessions for synchronized rings, card-play animation, normal draw animation, timeout draw animation, and hidden opponent-hand privacy.
 
 - Shared draw animations also cover accepted draw stacks, Wild Draw Four accept/challenge outcomes, missed-UNO catch penalties, and automatic timeout draws. Verify each recipient is correct and hidden card identities remain private.
+
+- GitHub Actions passed for commit `6f1fc1188b8594d5c615b79ac9cf1b6f3e42822a`: backend restore/build/test and web install/build succeeded. The two-browser visual smoke test still needs to be run locally.
