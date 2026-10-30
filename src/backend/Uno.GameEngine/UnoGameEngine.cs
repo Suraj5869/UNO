@@ -88,10 +88,12 @@ public sealed class UnoGameEngine
                 handCard.Type is not (CardType.Wild or CardType.WildDrawFour));
 
         game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
         player.RemoveCard(card);
         if (player.Hand.Count == 1)
         {
             game.PlayerAwaitingUnoCallId = player.Id;
+            game.UnoCallDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(3);
         }
         game.MutableDiscardPile.Add(card);
         game.JustDrawnCard = null;
@@ -304,6 +306,7 @@ public sealed class UnoGameEngine
         }
 
         game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
     }
 
     /// <summary>
@@ -322,6 +325,11 @@ public sealed class UnoGameEngine
         {
             throw new InvalidOperationException(
                 "There is no outstanding missed UNO call for that player.");
+        }
+
+        if (game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow < deadline)
+        {
+            throw new InvalidOperationException("Give the player three seconds to call UNO before catching them.");
         }
 
         if (catcherPlayerId == targetPlayerId ||
@@ -348,6 +356,7 @@ public sealed class UnoGameEngine
         }
 
         game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
         DrawCards(game, 2, targetIndex);
     }
 
@@ -384,6 +393,13 @@ public sealed class UnoGameEngine
 
     private static void EnsureCurrentPlayer(UnoGameState game, Guid playerId)
     {
+        if (game.PlayerAwaitingUnoCallId is not null &&
+            game.PlayerAwaitingUnoCallId != playerId &&
+            game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow < deadline)
+        {
+            throw new InvalidOperationException("Wait up to three seconds for the player to call UNO.");
+        }
+
         if (game.CurrentPlayer.Id != playerId)
         {
             throw new InvalidOperationException(
