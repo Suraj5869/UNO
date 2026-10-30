@@ -88,9 +88,21 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         ExecuteAction(code, accessToken, (room, playerId) =>
             new UnoGameEngine().ChallengeWildDrawFour(RequireGame(room), GetGamePlayerId(room, playerId)));
 
-    public Task CallUno(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId)));
+    public async Task CallUno(string code, string accessToken)
+    {
+        var player = roomStore.ExecuteLocked(code, room =>
+        {
+            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            var participant = room.Players.First(candidate => candidate.Id == playerId);
+            new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId));
+            return participant.DisplayName;
+        });
+
+        await Clients.Group(RoomRealtimePublisher.RoomGroup(code))
+            .SendAsync("UnoCalled", player);
+        await publisher.PublishRoomAsync(code);
+        await publisher.PublishGameStateAsync(code);
+    }
 
     public Task CatchUno(string code, string accessToken, Guid targetPlayerId) =>
         ExecuteAction(code, accessToken, (room, playerId) =>
