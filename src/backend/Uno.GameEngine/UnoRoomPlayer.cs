@@ -17,7 +17,7 @@ public sealed class UnoRoomPlayer
 
     public string DisplayName { get; }
 
-    public bool IsCreator { get; }
+    public bool IsCreator { get; internal set; }
 
     public Guid? GamePlayerId { get; internal set; }
 }
