@@ -55,6 +55,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         CardColor chosenColor = CardColor.None)
     {
         UnoCard? playedCard = null;
+        Guid? automaticDrawTargetPlayerId = null;
+        var automaticDrawCount = 0;
         return ExecuteAction(code, accessToken, (room, playerId) =>
         {
             var game = RequireGame(room);
@@ -65,10 +67,18 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
             var card = hand[cardIndex];
             playedCard = card;
+            if (card.Type == CardType.DrawTwo && game.RuleSet == UnoRuleSet.Official)
+            {
+                var nextPlayerIndex = (game.CurrentPlayerIndex + game.TurnDirection + game.Players.Count) % game.Players.Count;
+                var nextGamePlayerId = game.Players[nextPlayerIndex].Id;
+                automaticDrawTargetPlayerId = room.Players.First(player => player.GamePlayerId == nextGamePlayerId).Id;
+                automaticDrawCount = 2;
+            }
+
             new UnoGameEngine().PlayCard(game, gamePlayerId, card, chosenColor);
         }, playerId => playedCard is null
             ? null
-            : new GameActionPayload("CardPlayed", playerId, UnoCardResponse.From(playedCard)));
+            : new GameActionPayload("CardPlayed", playerId, UnoCardResponse.From(playedCard), automaticDrawCount, automaticDrawTargetPlayerId));
     }
 
     public Task DrawCard(string code, string accessToken) =>
