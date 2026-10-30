@@ -16,7 +16,7 @@ public sealed class RoomRealtimePublisher(
     public async Task PublishGameActionAsync(string code, GameActionPayload action)
     {
         var sequence = _eventSequences.AddOrUpdate(code, 1, (_, current) => current + 1);
-        var gameAction = new GameActionEvent(sequence, action.Action, action.PlayerId, action.Card, action.DrawCount, DateTimeOffset.UtcNow);
+        var gameAction = new GameActionEvent(sequence, action.Action, action.PlayerId, action.Card, action.DrawCount, action.DrawTargetPlayerId, DateTimeOffset.UtcNow);
         await hubContext.Clients.Group(RoomGroup(code)).SendAsync("GameAction", gameAction);
     }
 
@@ -56,5 +56,5 @@ public sealed class RoomRealtimePublisher(
     }
 }
 
-public sealed record GameActionPayload(string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount = 0);
-public sealed record GameActionEvent(long EventSequence, string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount, DateTimeOffset OccurredAtUtc);
+public sealed record GameActionPayload(string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount = 0, Guid? DrawTargetPlayerId = null);
+public sealed record GameActionEvent(long EventSequence, string Action, Guid PlayerId, UnoCardResponse? Card, int DrawCount, Guid? DrawTargetPlayerId, DateTimeOffset OccurredAtUtc);
