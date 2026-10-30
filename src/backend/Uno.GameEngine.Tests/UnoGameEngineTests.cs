@@ -390,6 +390,7 @@ public sealed class UnoGameEngineTests
 
         engine.PlayCard(game, target.Id, card);
         var catcher = game.CurrentPlayer;
+        Thread.Sleep(3100);
         engine.DrawCard(game, catcher.Id);
 
         Assert.Throws<InvalidOperationException>(() =>
