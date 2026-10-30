@@ -22,6 +22,7 @@ public sealed record GameStateResponse(
     CardType? PendingDrawType,
     bool IsWildDrawFourChallengePending,
     bool CanPassAfterDraw,
+    UnoCardResponse? JustDrawnCard,
     Guid? PlayerAwaitingUnoCallId,
     IReadOnlyList<GamePlayerResponse> Players)
 {
@@ -38,6 +39,10 @@ public sealed record GameStateResponse(
 
         var awaitingUnoRoomPlayerId = room.Players.FirstOrDefault(
             player => player.GamePlayerId == game.PlayerAwaitingUnoCallId)?.Id;
+        var justDrawnCard = game.CurrentPlayer.Id == viewer.GamePlayerId &&
+            game.JustDrawnCardForCurrentPlayer is { } drawnCard
+                ? UnoCardResponse.From(drawnCard)
+                : null;
 
         return new GameStateResponse(
             room.Code,
@@ -55,6 +60,7 @@ public sealed record GameStateResponse(
             game.PendingDrawType,
             game.IsWildDrawFourChallengePending,
             game.CanPassAfterDraw,
+            justDrawnCard,
             awaitingUnoRoomPlayerId,
             room.Players.Select(roomPlayer =>
             {
