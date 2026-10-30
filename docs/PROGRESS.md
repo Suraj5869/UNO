@@ -66,7 +66,7 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 
 ## Wild color clarity and rematch flow
 
-- Added a prominent table-level active-color callout, explicitly labelled `WILD COLOR SELECTED` after a Wild or Wild Draw Four. All clients derive the selected color from server-authoritative `ActiveColor`.
-- Added a completed-game Play Again flow. The first player to opt in creates a fresh lobby and becomes its host; other previous players are returned home unless they opt in while the lobby is still open. The new lobby can be configured and started normally.
-- Added REST `POST /api/rooms/{code}/play-again` and room-wide `RematchStarted` event. Stale non-opted player tokens are revoked when the new game starts.
+- Completed games offer independent Play Again and Back to Home choices. The first player to opt in creates a fresh lobby and becomes its host; other players stay on their completed-match screen until they choose for themselves. Previous players can opt in while the lobby is open. The new lobby can be configured and started normally.
+- Added REST `POST /api/rooms/{code}/play-again`; ordinary room updates keep non-opted clients on their completed-match screen. Stale non-opted player tokens are revoked when the new game starts.
+- After a Wild or Wild Draw Four, the chosen colour is communicated through a matching coloured outline and glow on the top discard card. No active-colour callout is shown for normal cards.
 - Added engine room tests for rematch reset, host promotion, returning participants, and invalid rematch timing. GitHub Actions passed for commit `92da248669d3d9b0b64fe0f7b535fd1e3e33175e` (backend restore/build/test and web install/build). Manual multi-browser rematch verification remains pending.
