@@ -37,3 +37,16 @@
 @keyframes medal-float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(3deg)}}
 @media(max-width:480px){.uno-celebration-card{padding:27px 18px 22px;border-radius:20px}.uno-word{letter-spacing:-3px}.game-over-overlay{padding:14px}.game-over-card{border-radius:22px}.winner-stats{gap:5px}.winner-stats span{padding:11px 3px}}
 @media(prefers-reduced-motion:reduce){.uno-celebration-layer,.uno-celebration-card,.uno-burst,.game-over-overlay,.game-over-card,.winner-medallion{animation:none}}
+
+/* Immersive gameplay: hide nonessential chrome and give the table the viewport. */
+body:has(.room-heading) .main-content{width:100%;max-width:none;margin:0;padding:clamp(12px,2vw,28px) clamp(12px,2vw,32px) 24px}
+body:has(.room-heading) .room-heading{max-width:1500px;margin:0 auto 18px;align-items:center}
+body:has(.room-heading) .game-layout{display:block;width:100%;max-width:1500px;margin:0 auto}
+body:has(.room-heading) .game-panel{width:100%;min-height:calc(100vh - 190px);padding:clamp(14px,2vw,28px);display:flex;flex-direction:column}
+body:has(.room-heading) .table-felt{flex:1;min-height:calc(100vh - 390px);display:flex;flex-direction:column;justify-content:space-between}
+body:has(.room-heading) .center-piles{flex:1;align-items:center;justify-content:center;min-height:230px}
+body:has(.room-heading) .my-seat{margin-top:auto}
+body:has(.room-heading) .game-footnote{display:none}
+body:has(.room-heading) .footer{display:none}
+body:has(.room-heading) .topbar{height:58px;padding:0 clamp(16px,3vw,42px)}
+@media(max-width:700px){body:has(.room-heading) .main-content{padding:10px 8px 14px}body:has(.room-heading) .room-heading{margin-bottom:12px}body:has(.room-heading) .room-heading h1{font-size:34px}body:has(.room-heading) .game-panel{min-height:calc(100vh - 135px);padding:9px}body:has(.room-heading) .table-felt{min-height:calc(100vh - 330px)}body:has(.room-heading) .center-piles{min-height:180px}body:has(.room-heading) .topbar{height:54px}}
