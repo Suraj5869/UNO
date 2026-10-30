@@ -77,6 +77,9 @@ public sealed class UnoGameState
     /// </summary>
     public Guid? PlayerAwaitingUnoCallId { get; internal set; }
 
+    /// <summary>Earliest time opponents may catch a missed UNO call.</summary>
+    public DateTimeOffset? UnoCallDeadlineUtc { get; internal set; }
+
     public bool IsWildDrawFourChallengePending =>
         WildDrawFourOffenderIndex.HasValue;
 
