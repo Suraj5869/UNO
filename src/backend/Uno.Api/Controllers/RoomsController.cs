@@ -159,6 +159,38 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         }
     }
 
+    [HttpPost("{code}/play-again")]
+    [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<RoomAccessResponse>> PlayAgain(string code, StartRoomRequest request)
+    {
+        try
+        {
+            var access = roomStore.PlayAgain(code, request.AccessToken);
+            var response = new RoomAccessResponse(
+                RoomResponse.From(access.Room),
+                access.PlayerId,
+                access.AccessToken);
+            await publisher.PublishRematchStartedAsync(code);
+            return Ok(response);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(Problem("Room not found", exception.Message, 404));
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                Problem("Room permission required", exception.Message, 403));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(Problem("Cannot start rematch", exception.Message, 409));
+        }
+    }
+
     private static ProblemDetails Problem(string title, string detail, int status) =>
         new()
         {
