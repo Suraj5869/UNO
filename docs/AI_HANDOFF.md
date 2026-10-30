@@ -18,7 +18,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 ## Current implementation status
 - Classic 108-card deck, game factory, state model, and gameplay engine are implemented.
 - Engine supports card play, drawing/passing, Skip, Reverse, Draw Two, Wild color selection, and Wild Draw Four accept/challenge.
-- UNO call and missed-call penalty actions are implemented; a missed call draws two cards if caught before the next player begins an action.
+- UNO call and missed-call penalty actions are implemented; after a player is reduced to one card, a server-enforced three-second grace period lets them call UNO before opponents may act or catch them. If they miss it, catching them draws two cards.
 - `UnoRuleSet` supports Official and House presets, defaults new games to Official, and stores the selected preset as read-only game state.
 - House Rules support same-type stacking only (Draw Two on Draw Two, Wild Draw Four on Wild Draw Four); mixed stacks are rejected. Draw Two stacks can be accepted for the accumulated penalty. A stacked Wild Draw Four retains challenge handling for the latest card; success penalizes the latest offender with the accumulated amount, failure penalizes the challenger with the accumulated amount plus two.
 - `UnoGameRoom` and `UnoRoomPlayer` implement in-memory private-room lifecycle: creator, room code, 2–10 capacity, join, creator-only rule selection and start, selected rule passed to game factory, room-to-engine player ID mapping, and settings/membership locked after start. User reports the complete test suite passes.
@@ -31,7 +31,7 @@ Shared room/game infrastructure targets 2–10 total participants, humans plus b
 - User confirmed the existing tests passed locally before the latest UNO-call changes. The newly added UNO-call tests still need a local run.
 
 ## Last relevant implementation
-The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, clickable draw pile, a room-wide `UnoCalled` animation, a game-complete winner panel, and responsive layout. The latest UI/hub changes are committed but still require build and two-browser testing. See `docs/SIGNALR.md` for the protocol.
+The initial React + TypeScript + Vite web client is now in `src/web/`. It supports creating/joining rooms, lobby state and rule selection, SignalR live updates, hand rendering, card play/wild color selection, draw/pass, penalty/challenge actions, UNO call/catch, clickable draw pile, a room-wide `UnoCalled` animation, a game-complete winner panel, and a three-second waiting message before the catch button appears. Server engine enforces the grace period; latest changes require build and two-browser testing. See `docs/SIGNALR.md` for the protocol.
 
 ## Branch policy
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
