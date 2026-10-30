@@ -70,3 +70,12 @@ Clients ignore duplicate/older sequence numbers and use events only for transien
 Draw-action events are also emitted when a player accepts a House Rules draw stack, accepts a Wild Draw Four, resolves a Wild Draw Four challenge (the event targets the player who actually receives the penalty), or is caught for a missed UNO call. Automatic turn-timeout draws use the same event. These events contain counts and room-level recipient IDs only; they never reveal drawn cards.
 
 Official Rules Draw Two plays also include the automatically affected next player and the two-card count in the same `CardPlayed` event, so clients can animate the public play and its immediate penalty together without revealing the drawn cards.
+
+
+## Rematch flow
+
+- REST: `POST /api/rooms/{code}/play-again` with `{ "accessToken": "..." }` returns a new `RoomAccessResponse` for the rematch lobby.
+- The first participant to opt in resets the completed game, becomes the new lobby creator, and is the only player in the fresh lobby initially. Previous participants may opt in through the same endpoint while the lobby is waiting; their player IDs and room tokens are retained for this transition.
+- The server broadcasts `RematchStarted(RoomResponse)` to the previous room group. A client whose player ID is in the new room's player list stays in the lobby; other clients clear their room session and return home.
+- The new host can invite players, change the rules, and start once at least two players have opted in or joined. Starting the new game closes the rematch opt-in window and revokes tokens for players who did not opt in.
+- `RoomUpdated` follows the rematch event. The old game state is discarded; a new game is created only when the new host starts the lobby.
