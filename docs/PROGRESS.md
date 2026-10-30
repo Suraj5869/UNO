@@ -52,3 +52,11 @@ Phase 4 — Real-time multiplayer backend foundation.
 ## Next task
 
 Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test two browsers joining one room, privacy of each hand, all action flows, and reconnect behavior. Fix compile/runtime issues found locally before adding automated API/SignalR integration tests. Persistence and production CORS origins remain required before deployment.
+
+
+## Latest UI/realtime improvement
+
+- Replaced the top-positioned turn clock with a circular countdown ring around the active player's avatar, visible to all players including the active player. The warning state begins in the final 10 seconds; server timeout enforcement is unchanged.
+- Added sequenced room-wide `GameAction` events for public card plays, normal draws, and automatic timeout draws. Played-card details are public; draw events contain only player ID and draw count, never hidden card identities.
+- The web client ignores duplicate/older action sequence numbers and renders transient card-flight animations independently of authoritative game-state updates.
+- Automated CI/build and two-browser visual verification are pending.
