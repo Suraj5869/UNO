@@ -8,3 +8,32 @@
 
 /* Celebratory feedback for UNO calls and completed matches. */
 .uno-announcement{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin:0 auto 16px;padding:15px 20px;border:1px solid #d6ff79;border-radius:14px;background:linear-gradient(110deg,#c7f36b,#f7ffd8,#c7f36b);color:#172018;box-shadow:0 0 28px #c7f36b50;animation:uno-pop .45s cubic-bezier(.2,.9,.3,1.3) both}.uno-announcement span{font:900 italic 32px 'Space Grotesk',sans-serif;letter-spacing:1px;transform:rotate(-7deg);text-shadow:2px 2px #fff8}.uno-announcement strong{font-size:14px}.game-over-overlay{position:relative;z-index:4;margin-bottom:18px;padding:20px;border-radius:18px;background:radial-gradient(ellipse at top,#355a2c,#171d25 72%);border:1px solid #c7f36b80;box-shadow:0 0 35px #c7f36b20;animation:uno-pop .5s ease-out both}.game-over-card{text-align:center;padding:18px 10px}.game-over-confetti{display:block;color:var(--accent);font-size:28px;letter-spacing:12px;animation:confetti-glow 1.5s ease-in-out infinite alternate}.game-over-card h2{font:700 clamp(30px,4vw,48px) 'Space Grotesk',sans-serif;color:var(--accent);margin:12px 0}.game-over-card p{color:#cbd4c7;font-size:13px;margin:0 0 20px}.game-over-card .button{margin:0 auto}@keyframes uno-pop{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes confetti-glow{from{transform:scale(.95);filter:brightness(.8)}to{transform:scale(1.08);filter:brightness(1.3)}}@media(prefers-reduced-motion:reduce){.uno-announcement,.game-over-overlay,.game-over-confetti{animation:none}}
+
+/* High-intent game moments: celebrations sit above the whole table, not in the layout. */
+.uno-celebration-layer{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at center,#09150eb0 0%,#080b12a8 42%,#080b1280 100%);pointer-events:none;animation:uno-backdrop-in .18s ease-out both}
+.uno-celebration-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;width:min(440px,100%);padding:32px 28px 27px;border:1px solid #d7ff7d;border-radius:24px;background:linear-gradient(145deg,#e4ff9b 0%,#c7f36b 42%,#a9d84d 100%);color:#182014;text-align:center;box-shadow:0 24px 100px #0009,0 0 0 8px #c7f36b18,0 0 70px #c7f36b55;animation:uno-card-impact .65s cubic-bezier(.16,1.35,.35,1) both}
+.uno-burst{position:absolute;top:-25px;right:23px;font-size:44px;color:#f8ffdb;text-shadow:0 3px 14px #c7f36b80;animation:uno-sparkle 1.1s ease-in-out infinite alternate}
+.uno-word{font:900 italic clamp(58px,12vw,88px)/.95 'Space Grotesk',sans-serif;letter-spacing:-5px;color:#fff;text-shadow:3px 4px 0 #e64b54,6px 7px 0 #1b2a19;transform:rotate(-7deg);margin:4px 0 10px}
+.uno-celebration-card strong{font:700 17px 'Space Grotesk',sans-serif}
+.uno-subtitle{font-size:9px;letter-spacing:2px;font-weight:900;opacity:.7;margin-top:3px}
+.game-over-overlay{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;overflow-y:auto;padding:24px;background:radial-gradient(ellipse at 50% 38%,#273b2ee8 0%,#11151fee 52%,#080b12f5 100%);backdrop-filter:blur(12px);animation:uno-backdrop-in .35s ease-out both}
+.game-over-card{position:relative;width:min(560px,100%);margin:auto;padding:clamp(26px,5vw,48px);border:1px solid #c7f36b70;border-radius:28px;background:linear-gradient(150deg,#222d2a 0%,#171e25 52%,#151923 100%);text-align:center;box-shadow:0 35px 110px #0009,0 0 0 1px #ffffff0a,0 0 75px #c7f36b16;animation:winner-arrive .65s cubic-bezier(.16,1.1,.3,1) both}
+.game-over-card:before{content:'';position:absolute;inset:0 12% auto;height:2px;background:linear-gradient(90deg,transparent,#c7f36b,transparent)}
+.winner-medallion{display:grid;place-items:center;width:76px;height:76px;margin:0 auto 20px;border:1px solid #f5d987;border-radius:50%;background:radial-gradient(circle at 30% 20%,#fff0b0,#b8872e 72%);font-size:35px;box-shadow:0 0 0 8px #e8c35a12,0 10px 30px #0005;animation:medal-float 2s ease-in-out infinite}
+.game-over-card .mini-label{color:#c7f36b;letter-spacing:2.5px}
+.game-over-card h2{font:700 clamp(34px,7vw,58px)/1.05 'Space Grotesk',sans-serif;letter-spacing:-2px;color:#f7f9f3;margin:16px 0 12px;overflow-wrap:anywhere}
+.game-over-card h2:after{content:' ✦';color:#c7f36b;font-size:.55em;vertical-align:top}
+.game-over-card>p{max-width:380px;margin:0 auto 24px;color:#b8c4bb;font-size:13px;line-height:1.7}
+.winner-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:24px 0 26px}
+.winner-stats span{display:flex;flex-direction:column;gap:6px;padding:13px 6px;border:1px solid #ffffff12;border-radius:12px;background:#ffffff06}
+.winner-stats strong{font:700 15px 'Space Grotesk',sans-serif;color:#d6ff7e;overflow-wrap:anywhere}
+.winner-stats small{font-size:8px;letter-spacing:1.2px;color:#8f9d92}
+.winner-exit{min-width:220px;min-height:46px;gap:18px}
+.game-over-card .result-footnote{margin:18px 0 0;font-size:10px;color:#77867b}
+@keyframes uno-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes uno-card-impact{0%{opacity:0;transform:translateY(28px) scale(.72) rotate(-5deg)}68%{opacity:1;transform:translateY(-5px) scale(1.035) rotate(1deg)}100%{transform:translateY(0) scale(1) rotate(0)}}
+@keyframes uno-sparkle{from{transform:rotate(-12deg) scale(.8)}to{transform:rotate(12deg) scale(1.18)}}
+@keyframes winner-arrive{from{opacity:0;transform:translateY(24px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes medal-float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(3deg)}}
+@media(max-width:480px){.uno-celebration-card{padding:27px 18px 22px;border-radius:20px}.uno-word{letter-spacing:-3px}.game-over-overlay{padding:14px}.game-over-card{border-radius:22px}.winner-stats{gap:5px}.winner-stats span{padding:11px 3px}}
+@media(prefers-reduced-motion:reduce){.uno-celebration-layer,.uno-celebration-card,.uno-burst,.game-over-overlay,.game-over-card,.winner-medallion{animation:none}}
