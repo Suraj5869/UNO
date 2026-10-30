@@ -317,6 +317,9 @@ public sealed class UnoGameEngineTests
         var catcher = game.CurrentPlayer;
         var originalTargetHandSize = target.Hand.Count;
 
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CatchUno(game, catcher.Id, target.Id));
+        Thread.Sleep(3100);
         engine.CatchUno(game, catcher.Id, target.Id);
 
         Assert.Equal(originalTargetHandSize + 2, target.Hand.Count);
@@ -335,6 +338,7 @@ public sealed class UnoGameEngineTests
         Assert.Equal(previousPlayer.Id, game.PlayerAwaitingUnoCallId);
 
         var nextPlayer = game.CurrentPlayer;
+        Thread.Sleep(3100);
         engine.DrawCard(game, nextPlayer.Id);
 
         Assert.Null(game.PlayerAwaitingUnoCallId);
