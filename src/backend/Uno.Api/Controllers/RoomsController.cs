@@ -134,12 +134,8 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
-            var room = roomStore.ExecuteLocked(code, currentRoom =>
-            {
-                var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
-                currentRoom.StartGame(playerId);
-                return RoomResponse.From(currentRoom);
-            });
+            roomStore.StartGame(code, request.AccessToken);
+            var room = roomStore.ExecuteLocked(code, currentRoom => RoomResponse.From(currentRoom));
             await publisher.PublishRoomAsync(code);
             await publisher.PublishGameStateAsync(code);
             return Ok(room);
