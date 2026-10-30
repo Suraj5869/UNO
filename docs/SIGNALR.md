@@ -55,3 +55,13 @@ Add each additional allowed origin using the next index. Do not use a wildcard o
 - Tokens do not yet expire or support revocation.
 - Reconnect/resynchronization, disconnection cleanup, player rejoining, room expiry, authentication/accounts, and distributed hosting are not implemented.
 - SignalR is not documented in Swagger's HTTP operation list; use a SignalR client to invoke hub methods.
+
+
+## Animated game-action events
+
+The server broadcasts a room-wide `GameAction` event after a successful authoritative action and before publishing updated player-specific game states. The event envelope contains a per-room sequence number, action name, room-level player ID, optional public played-card data, draw count, and server timestamp.
+
+- `GameAction(CardPlayed)`: includes the played card because it is now public on the discard pile.
+- `GameAction(CardDrawn)` / `GameAction(CardsDrawn)`: includes only the target player ID and number of cards drawn. It never includes card identities, including for opponents.
+
+Clients ignore duplicate/older sequence numbers and use events only for transient animation. `GameStateUpdated` remains authoritative. On reconnect, fetch the latest filtered state and do not replay old animations. The web client renders the shared countdown ring from the server-issued deadline; timeout enforcement remains server-side.
