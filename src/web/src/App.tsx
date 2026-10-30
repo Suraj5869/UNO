@@ -138,7 +138,7 @@ export default function App() {
     try {
       await hub.invoke(method, access.room.code, access.accessToken, ...args);
       if (method === 'CallUno') {
-        const announcement = (viewer?.displayName || 'A player') + ' says UNO!';
+        const announcement = (game?.players.find(player => player.playerId === game.viewerPlayerId)?.displayName || 'A player') + ' says UNO!';
         setUnoAnnouncement(announcement);
         setUnoAnimationKey(key => key + 1);
         window.setTimeout(() => setUnoAnnouncement(current => current === announcement ? '' : current), 3200);
@@ -148,7 +148,7 @@ export default function App() {
       setError(e instanceof Error ? e.message : 'That action was rejected.');
       try { setGame(await hub.invoke<Game>('GetGameState', access.room.code, access.accessToken)); } catch { /* Keep original error. */ }
     }
-  }, [access, hub, viewer?.displayName]);
+  }, [access, hub, game]);
 
   const changeRule = async (value: RuleSet) => {
     if (!access || !room) return;
