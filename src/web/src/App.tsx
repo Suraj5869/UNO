@@ -134,7 +134,7 @@ export default function App() {
       try {
         await connection.invoke('JoinRoom', access.room.code, access.accessToken);
         const value = await connection.invoke<Game>('GetGameState', access.room.code, access.accessToken).catch(() => null);
-        if (value && active) setGame(value);
+        if (value && active) { completedGameRef.current = value.gameStatus === 1; setGame(value); }
         if (active) setNotice('Reconnected to the room.');
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not rejoin room.'); }
     });
@@ -143,7 +143,7 @@ export default function App() {
       await connection.invoke('JoinRoom', access.room.code, access.accessToken);
       if (active) setHub(connection);
       const value = await connection.invoke<Game>('GetGameState', access.room.code, access.accessToken).catch(() => null);
-      if (value && active) setGame(value);
+      if (value && active) { completedGameRef.current = value.gameStatus === 1; setGame(value); }
       await refresh();
     }).catch(e => { if (active) setError('Realtime connection failed: ' + (e instanceof Error ? e.message : 'check API URL and HTTPS certificate')); });
     return () => { active = false; setHub(old => old === connection ? null : old); void connection.stop(); };
@@ -211,7 +211,7 @@ export default function App() {
   const leave = async () => {
     await hub?.stop().catch(() => undefined);
     sessionStorage.removeItem('uno-room-access');
-    setAccess(null); setRoom(null); setGame(null); setHub(null); setError('');
+    setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false; setError('');
     setNotice('You returned to the home screen.');
   };
 
