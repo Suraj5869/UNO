@@ -2,6 +2,7 @@ namespace Uno.GameEngine;
 
 public sealed class UnoGameState
 {
+    public const int TurnDuration = 30;
     private readonly List<UnoPlayer> _players;
     private readonly List<UnoCard> _drawPile;
     private readonly List<UnoCard> _discardPile;
@@ -47,6 +48,7 @@ public sealed class UnoGameState
         TurnDirection = turnDirection;
         Status = status;
         RuleSet = ruleSet;
+        TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(TurnDuration);
     }
 
     public IReadOnlyList<UnoPlayer> Players { get; }
@@ -91,6 +93,7 @@ public sealed class UnoGameState
 
     internal UnoCard? JustDrawnCard { get; set; }
     public bool CanPassAfterDraw => JustDrawnCard is not null;
+    public DateTimeOffset TurnDeadlineUtc { get; internal set; }
     public UnoCard? JustDrawnCardForCurrentPlayer => JustDrawnCard;
 
     internal int? WildDrawFourOffenderIndex { get; set; }
