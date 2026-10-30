@@ -98,12 +98,13 @@ public sealed class RoomStore
                 }
 
                 if (!_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates) ||
-                    !candidates.Remove(playerId, out var displayName))
+                    !candidates.TryGetValue(playerId, out var displayName))
                 {
                     throw new InvalidOperationException("This player is no longer eligible to join the rematch lobby.");
                 }
 
                 room.JoinRematch(playerId, displayName);
+                candidates.Remove(playerId);
             }
             else
             {
