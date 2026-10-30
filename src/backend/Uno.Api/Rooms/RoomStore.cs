@@ -76,6 +76,15 @@ public sealed class RoomStore
         }
     }
 
+    public IReadOnlyList<string> GetActiveRoomCodes()
+    {
+        lock (_sync)
+        {
+            return _roomsByCode.Values.Where(room => room.Status == UnoRoomStatus.InProgress && room.Game is not null)
+                .Select(room => room.Code).ToArray();
+        }
+    }
+
     public UnoGameRoom GetByCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code))
