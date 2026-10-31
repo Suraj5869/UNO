@@ -143,6 +143,24 @@ public sealed class RoomStore
         }
     }
 
+    public RoomResponse Leave(string code, string accessToken)
+    {
+        lock (_sync)
+        {
+            var room = GetByCodeUnsafe(code);
+            if (string.IsNullOrWhiteSpace(accessToken) ||
+                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+                throw new UnauthorizedAccessException("The room access token is invalid.");
+
+            room.Leave(playerId);
+            _tokensByRoomCode[room.Code].Remove(accessToken);
+            if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
+                candidates.Remove(playerId);
+
+            return RoomResponse.From(room);
+        }
+    }
+
     /// <summary>
     /// Runs a room operation while holding the registry lock. The first
     /// multiplayer implementation uses this to serialize game mutations.
