@@ -166,6 +166,38 @@ public sealed class UnoGameRoomTests
     }
 
     [Fact]
+    public void Leave_DuringGame_RemovesPlayerAndAdvancesIfItWasTheirTurn()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        room.Join("Bob");
+        room.Join("Charlie");
+        var game = room.StartGame(room.CreatorPlayerId, new Random(123));
+        var leavingGamePlayerId = game.CurrentPlayer.Id;
+        var leavingRoomPlayer = room.Players.Single(player => player.GamePlayerId == leavingGamePlayerId);
+        var nextGamePlayerId = game.Players[(game.CurrentPlayerIndex + 1) % game.Players.Count].Id;
+
+        Assert.True(room.Leave(leavingRoomPlayer.Id));
+
+        Assert.DoesNotContain(room.Players, player => player.Id == leavingRoomPlayer.Id);
+        Assert.DoesNotContain(game.Players, player => player.Id == leavingGamePlayerId);
+        Assert.Equal(nextGamePlayerId, game.CurrentPlayer.Id);
+        Assert.Equal(2, game.Players.Count);
+    }
+
+    [Fact]
+    public void Leave_RoomCreator_PromotesAnotherPlayer()
+    {
+        var room = new UnoGameRoom("Alice");
+        var bob = room.Join("Bob");
+
+        Assert.True(room.Leave(room.CreatorPlayerId));
+
+        Assert.Equal(bob.Id, room.CreatorPlayerId);
+        Assert.True(bob.IsCreator);
+        Assert.Single(room.Players);
+    }
+
+    [Fact]
     public void CreateRoom_WithHouseRules_PreservesSelectedPreset()
     {
         var room = new UnoGameRoom("Alice", ruleSet: UnoRuleSet.House);
