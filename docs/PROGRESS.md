@@ -90,3 +90,8 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 
 - Desktop (1000px and wider) opponent seats are positioned around the felt perimeter rather than in a grid. Draw/discard remain centered and the local player's hand remains anchored along the bottom.
 - Mobile/tablet horizontal opponent strip is unchanged. Validate with 2, 4, 6, and 10 players at wide and short desktop viewports.
+
+
+## Wild color picker dismissal
+
+- The pending Wild/Wild Draw Four color picker is cleared whenever the local player performs another game action and whenever it is no longer their turn. This prevents a stale color picker from remaining visible after playing another card, drawing, or resolving a turn.
