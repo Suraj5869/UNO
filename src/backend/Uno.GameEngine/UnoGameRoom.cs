@@ -74,6 +74,27 @@ public sealed class UnoGameRoom
         return AddPlayer(displayName, isCreator: false);
     }
 
+    /// <summary>Removes a room participant and their active game seat, if any.</summary>
+    public bool Leave(Guid playerId)
+    {
+        var player = _players.FirstOrDefault(candidate => candidate.Id == playerId);
+        if (player is null) return false;
+
+        if (Game is { Status: GameStatus.InProgress } game && player.GamePlayerId is { } gamePlayerId)
+            new UnoGameEngine().RemovePlayer(game, gamePlayerId);
+
+        _players.Remove(player);
+
+        if (CreatorPlayerId == playerId && _players.Count > 0)
+        {
+            CreatorPlayerId = _players[0].Id;
+            foreach (var participant in _players)
+                participant.IsCreator = participant.Id == CreatorPlayerId;
+        }
+
+        return true;
+    }
+
     public void SetRuleSet(Guid requestingPlayerId, UnoRuleSet ruleSet)
     {
         EnsureWaiting();
