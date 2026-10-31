@@ -84,3 +84,9 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - The server removes the participant from room membership, revokes their room token, and broadcasts the updated room and remaining player game states.
 - If a player leaves during an active game, their engine seat is removed. If they were the active player, the turn advances to the next remaining player. UNO-call state is cleared when the departing player owns it. If fewer than two players remain, the game is marked completed.
 - Added room tests for current-player departure and creator promotion. CI status and live multiplayer verification remain pending.
+
+
+## Desktop circular seating
+
+- Desktop (1000px and wider) opponent seats are positioned around the felt perimeter rather than in a grid. Draw/discard remain centered and the local player's hand remains anchored along the bottom.
+- Mobile/tablet horizontal opponent strip is unchanged. Validate with 2, 4, 6, and 10 players at wide and short desktop viewports.
