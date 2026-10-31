@@ -219,10 +219,16 @@ export default function App() {
   };
 
   const leave = async () => {
+    let leaveError = '';
+    if (hub?.state === 'Connected' && access) {
+      try { await hub.invoke('LeaveRoom', access.room.code, access.accessToken); }
+      catch (e) { leaveError = e instanceof Error ? e.message : 'Could not notify the room that you left.'; }
+    }
     await hub?.stop().catch(() => undefined);
     sessionStorage.removeItem('uno-room-access');
-    setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false; setError('');
-    setNotice('You returned to the home screen.');
+    setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false;
+    setError(leaveError);
+    setNotice(leaveError ? '' : 'You left the room.');
   };
 
   const viewer = useMemo(() => game?.players.find(p => p.playerId === game.viewerPlayerId), [game]);
