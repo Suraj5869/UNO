@@ -161,6 +161,7 @@ export default function App() {
 
   const act = useCallback(async (method: string, ...args: unknown[]) => {
     if (!hub || hub.state !== 'Connected' || !access) { setError('Realtime connection is not ready. Wait a moment and retry.'); return; }
+    setWildIndex(null);
     setError(''); setNotice('');
     try {
       await hub.invoke(method, access.room.code, access.accessToken, ...args);
@@ -233,6 +234,7 @@ export default function App() {
 
   const viewer = useMemo(() => game?.players.find(p => p.playerId === game.viewerPlayerId), [game]);
   const myTurn = !!game && game.currentPlayerId === game.viewerPlayerId;
+  useEffect(() => { if (!myTurn) setWildIndex(null); }, [myTurn]);
   const isHost = !!access && !!room?.players.find(p => p.id === access.playerId)?.isCreator;
   const winner = game?.gameStatus === 1 ? game.players.find(p => p.cardCount === 0) : undefined;
   const catchTarget = game?.playerAwaitingUnoCallId && game.playerAwaitingUnoCallId !== game.viewerPlayerId ? game.players.find(p => p.playerId === game.playerAwaitingUnoCallId) : null;
