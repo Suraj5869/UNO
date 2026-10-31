@@ -70,3 +70,9 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Added REST `POST /api/rooms/{code}/play-again`; ordinary room updates keep non-opted clients on their completed-match screen. Stale non-opted player tokens are revoked when the new game starts.
 - After a Wild or Wild Draw Four, the chosen colour is communicated through a matching coloured outline and glow on the top discard card. No active-colour callout is shown for normal cards.
 - Added engine room tests for rematch reset, host promotion, returning participants, and invalid rematch timing. GitHub Actions passed for commit `92da248669d3d9b0b64fe0f7b535fd1e3e33175e` (backend restore/build/test and web install/build). Manual multi-browser rematch verification remains pending.
+
+
+## Responsive layout and notification follow-up
+
+- Responsive game-table and toast changes are committed; CI and browser/device verification are pending.
+- Verify 10-player desktop and mobile layouts, readable opponent identity/card counts, hand scrolling/tap targets, and automatic toast dismissal.
