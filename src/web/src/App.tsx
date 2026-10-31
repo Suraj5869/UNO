@@ -48,6 +48,16 @@ export default function App() {
   const lastActionSequence = useRef(0);
   const completedGameRef = useRef(false);
 
+  // Notifications clear automatically; errors stay visible a little longer.
+  useEffect(() => {
+    if (!error && !notice) return;
+    const timeout = window.setTimeout(() => {
+      if (error) setError('');
+      if (notice) setNotice('');
+    }, error ? 6500 : 3600);
+    return () => window.clearTimeout(timeout);
+  }, [error, notice]);
+
   const api = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
     if (!response.ok) throw new Error(await messageFor(response));
