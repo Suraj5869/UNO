@@ -39,6 +39,22 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         return joined.Room;
     }
 
+    public async Task LeaveRoom(string code, string accessToken)
+    {
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+        roomStore.Leave(code, accessToken);
+
+        await Groups.RemoveFromGroupAsync(
+            Context.ConnectionId,
+            RoomRealtimePublisher.PlayerGroup(code, playerId));
+        await Groups.RemoveFromGroupAsync(
+            Context.ConnectionId,
+            RoomRealtimePublisher.RoomGroup(code));
+
+        await publisher.PublishRoomAsync(code);
+        await publisher.PublishGameStateAsync(code);
+    }
+
     public Task<GameStateResponse> GetGameState(string code, string accessToken)
     {
         return Task.FromResult(roomStore.ExecuteLocked(code, room =>
