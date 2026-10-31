@@ -35,3 +35,23 @@ jobs:
         run: npm install
       - name: Build web client
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        working-directory: src/web
+        run: npm install
+      - name: Install Playwright browser
+        working-directory: src/web
+        run: npx playwright install --with-deps chromium
+      - name: Run end-to-end tests
+        working-directory: src/web
+        run: npm run test:e2e
