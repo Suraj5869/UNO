@@ -173,3 +173,43 @@ body:has(.room-heading) .hand-card{flex:0 0 auto}
   body:has(.room-heading) .center-piles{top:45%;transform:translate(-50%,-50%) scale(.88)}
   body:has(.room-heading) .my-seat{padding-bottom:10px}
 }
+
+
+/* Keep the opponent seating zone above the player's playable hand area on desktop. */
+@media (min-width:1000px){
+  body:has(.room-heading) .table-felt{
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    padding:0;
+  }
+  body:has(.room-heading) .opponents{
+    inset:0 0 auto;
+    height:66%;
+  }
+  /* Five seats across the top edge. */
+  body:has(.room-heading) .opponent:nth-child(1){left:10%;top:4%;transform:translateX(-50%)}
+  body:has(.room-heading) .opponent:nth-child(2){left:30%;top:4%;transform:translateX(-50%)}
+  body:has(.room-heading) .opponent:nth-child(3){left:50%;top:4%;transform:translateX(-50%)}
+  body:has(.room-heading) .opponent:nth-child(4){left:70%;top:4%;transform:translateX(-50%)}
+  body:has(.room-heading) .opponent:nth-child(5){left:90%;top:4%;transform:translateX(-50%)}
+  /* Remaining seats run down the side edges, never into the hand zone. */
+  body:has(.room-heading) .opponent:nth-child(6){left:5%;top:27%;transform:translate(-50%,-50%)}
+  body:has(.room-heading) .opponent:nth-child(7){left:95%;top:27%;transform:translate(-50%,-50%)}
+  body:has(.room-heading) .opponent:nth-child(8){left:5%;top:49%;transform:translate(-50%,-50%)}
+  body:has(.room-heading) .opponent:nth-child(9){left:95%;top:49%;transform:translate(-50%,-50%)}
+  body:has(.room-heading) .my-seat{
+    flex:0 0 auto;
+    width:100%;
+    margin-top:auto;
+    position:relative;
+    z-index:3;
+    border-top:1px solid #ffffff35;
+    padding-top:14px;
+  }
+}
+@media (min-width:1000px) and (max-height:760px){
+  body:has(.room-heading) .opponents{height:64%}
+  body:has(.room-heading) .opponent:nth-child(8),
+  body:has(.room-heading) .opponent:nth-child(9){top:46%}
+}
