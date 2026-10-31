@@ -60,9 +60,15 @@ Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln
 
 
 ## Wild color and rematch behavior
-- The game table displays a prominent `ACTIVE COLOR` callout, labelled `WILD COLOR SELECTED` when the top discard is Wild/Wild Draw Four. It is based on server-filtered `GameStateResponse.ActiveColor` and visible to every player.
+- After a Wild or Wild Draw Four, the top discard card displays the selected color through a matching border and glow; ordinary cards have no added color indicator.
 - Completed games show Play Again and Back to Home. `POST /api/rooms/{code}/play-again` resets the room into a new waiting lobby on first opt-in and promotes that player to creator. Each player remains on their own completed-match screen until they independently choose Play Again or Back to Home; lobby broadcasts must not redirect or replace the completed screen for players who have not opted in. Previous players may opt in while the lobby remains open. Starting the new game closes the opt-in window and revokes tokens for non-opted players.
 - After a Wild or Wild Draw Four, the selected colour is shown as a coloured outline/glow on the top discard card only. Do not show a separate always-on active-colour callout.
 - Verify with two or more browser sessions: wild color selection updates all clients; first Play Again returns caller to lobby and sends non-opted clients home; another player opting in joins the same lobby; new host can change rules/start; old non-opted tokens cannot access the new game.
 
 - GitHub Actions passed for commit `92da248669d3d9b0b64fe0f7b535fd1e3e33175e` (backend restore/build/test and web install/build). Manual multi-browser rematch and wild-color visual verification remains outstanding.
+
+
+## Responsive UI follow-up
+- Notices auto-dismiss after 3.6 seconds; errors after 6.5 seconds.
+- Desktop uses compact opponent seats; smaller screens use a horizontally scrollable opponent strip and hand, retaining card tap size. Test 10-player layouts at desktop/mobile viewports.
+- Responsive/toast changes are committed; CI and live browser/device verification remain pending.
