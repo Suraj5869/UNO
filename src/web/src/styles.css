@@ -74,3 +74,72 @@ body:has(.room-heading) .topbar{height:58px;padding:0 clamp(16px,3vw,42px)}
 .top-card.selected-wild-color-green{border-color:#42df91;box-shadow:0 0 0 3px #42df91,0 0 18px 5px #42df9177,0 9px 18px #001a1277}
 .top-card.selected-wild-color-blue{border-color:#65a5ff;box-shadow:0 0 0 3px #65a5ff,0 0 18px 5px #65a5ff77,0 9px 18px #001a1277}
 .winner-actions{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 14px}.game-over-card .winner-actions .button{margin:0;min-width:155px}.game-over-card .winner-home{border-color:#ffffff40;color:#eef2e9;background:#ffffff0b}.game-over-card .winner-home:hover{background:#ffffff18}.game-over-card .result-footnote{max-width:390px;margin:0 auto;color:#aeb9ad;font-size:11px;line-height:1.55}@media(max-width:600px){.winner-actions{flex-direction:column}.game-over-card .winner-actions .button{width:min(260px,100%)}}
+
+
+/* Responsive multiplayer table: seat metadata stays compact at high player counts. */
+body:has(.room-heading) .table-felt{
+  border-radius:28px;
+  border-width:4px;
+  min-height:0;
+  gap:clamp(12px,2vh,24px);
+  padding:clamp(12px,2vw,24px);
+}
+body:has(.room-heading) .opponents{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(78px,1fr));
+  align-content:start;
+  justify-items:center;
+  gap:12px 8px;
+  min-height:0;
+  width:100%;
+  max-width:1100px;
+  margin-inline:auto;
+}
+body:has(.room-heading) .opponent{min-width:0;width:100%;max-width:130px;gap:3px}
+body:has(.room-heading) .opponent strong{
+  display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+body:has(.room-heading) .back-cards{height:20px;max-width:100%;overflow:hidden}
+body:has(.room-heading) .back-cards span{width:13px;height:19px}
+body:has(.room-heading) .center-piles{min-height:0;padding:clamp(14px,3vh,28px) 0}
+body:has(.room-heading) .my-seat{width:100%;min-width:0}
+body:has(.room-heading) .hand-cards{max-width:100%;justify-content:flex-start;scrollbar-width:thin;overscroll-behavior-x:contain}
+body:has(.room-heading) .hand-card{flex:0 0 auto}
+.toast{animation:toast-enter .22s ease-out both}
+@keyframes toast-enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:1000px){
+  body:has(.room-heading) .table-felt{min-height:calc(100vh - 205px)}
+  body:has(.room-heading) .opponents{grid-template-columns:repeat(5,minmax(78px,1fr));}
+}
+@media(max-width:999px){
+  body:has(.room-heading) .table-felt{border-radius:22px}
+  body:has(.room-heading) .opponents{
+    display:flex;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;
+    padding:4px 2px 10px;gap:14px;scroll-snap-type:x proximity;
+    scrollbar-width:thin;min-height:0;
+  }
+  body:has(.room-heading) .opponent{flex:0 0 72px;scroll-snap-align:start}
+  body:has(.room-heading) .center-piles{gap:clamp(12px,4vw,28px)}
+  body:has(.room-heading) .my-seat-label h3 span{display:block;margin-top:3px}
+}
+@media(max-width:600px){
+  body:has(.room-heading) .game-toolbar{margin-bottom:8px}
+  body:has(.room-heading) .game-toolbar h2{font-size:clamp(18px,5vw,24px)}
+  body:has(.room-heading) .table-felt{padding:10px 8px;border-radius:18px;gap:8px}
+  body:has(.room-heading) .opponents{gap:10px}
+  body:has(.room-heading) .opponent{flex-basis:64px}
+  body:has(.room-heading) .opponent strong{font-size:9px}
+  body:has(.room-heading) .opponent>span{font-size:8px}
+  body:has(.room-heading) .back-cards{display:none}
+  body:has(.room-heading) .center-piles{padding:10px 0;gap:12px}
+  body:has(.room-heading) .direction-count{min-width:38px}
+  body:has(.room-heading) .direction-count>strong{font-size:24px}
+  body:has(.room-heading) .my-seat{padding-top:10px}
+  body:has(.room-heading) .hand-cards{padding:12px 2px 8px;min-height:0}
+  body:has(.room-heading) .hand-card{width:clamp(48px,14vw,58px);height:clamp(72px,21vw,86px);margin-left:-12px}
+  body:has(.room-heading) .hand-card:first-child{margin-left:0}
+  body:has(.room-heading) .hand-card b{font-size:clamp(18px,5vw,22px)}
+  body:has(.room-heading) .color-picker{flex-wrap:wrap}
+  body:has(.room-heading) .room-heading .button{padding:9px 10px;font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){.toast{animation:none}}
