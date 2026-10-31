@@ -146,6 +146,58 @@ public sealed class UnoGameEngine
         }
     }
 
+    /// <summary>Removes a participant who explicitly leaves the room.</summary>
+    public bool RemovePlayer(UnoGameState game, Guid playerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        if (game.Status != GameStatus.InProgress) return false;
+
+        var index = game.MutablePlayers.FindIndex(player => player.Id == playerId);
+        if (index < 0) return false;
+
+        var wasCurrentPlayer = index == game.CurrentPlayerIndex;
+        var wasWildDrawFourOffender = game.WildDrawFourOffenderIndex == index;
+        game.MutablePlayers.RemoveAt(index);
+
+        if (game.MutablePlayers.Count < 2)
+        {
+            game.Status = GameStatus.Completed;
+            game.CurrentPlayerIndex = 0;
+            game.PlayerAwaitingUnoCallId = null;
+            game.UnoCallDeadlineUtc = null;
+            game.JustDrawnCard = null;
+            return true;
+        }
+
+        if (index < game.CurrentPlayerIndex)
+            game.CurrentPlayerIndex--;
+
+        if (wasCurrentPlayer)
+            game.CurrentPlayerIndex %= game.MutablePlayers.Count;
+
+        if (game.PlayerAwaitingUnoCallId == playerId)
+        {
+            game.PlayerAwaitingUnoCallId = null;
+            game.UnoCallDeadlineUtc = null;
+        }
+
+        game.JustDrawnCard = null;
+        if (wasWildDrawFourOffender)
+        {
+            // Preserve the outstanding draw amount for the challenger, but
+            // no longer allow a challenge against a departed participant.
+            game.WildDrawFourOffenderIndex = null;
+            game.WildDrawFourWasIllegal = null;
+        }
+        else if (game.WildDrawFourOffenderIndex is { } offenderIndex && index < offenderIndex)
+        {
+            game.WildDrawFourOffenderIndex = offenderIndex - 1;
+        }
+
+        game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(UnoGameState.TurnDuration);
+        return true;
+    }
+
     /// <summary>
     /// Draws one card. If it is playable, the player may play that card or pass.
     /// If it is not playable, the player's turn ends automatically.
