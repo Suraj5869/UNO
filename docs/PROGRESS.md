@@ -76,3 +76,11 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 
 - Responsive game-table and toast changes are committed; CI and browser/device verification are pending.
 - Verify 10-player desktop and mobile layouts, readable opponent identity/card counts, hand scrolling/tap targets, and automatic toast dismissal.
+
+
+## Explicit player leave handling
+
+- The web Leave room / Back to Home action invokes the SignalR `LeaveRoom` method before disconnecting.
+- The server removes the participant from room membership, revokes their room token, and broadcasts the updated room and remaining player game states.
+- If a player leaves during an active game, their engine seat is removed. If they were the active player, the turn advances to the next remaining player. UNO-call state is cleared when the departing player owns it. If fewer than two players remain, the game is marked completed.
+- Added room tests for current-player departure and creator promotion. CI status and live multiplayer verification remain pending.
