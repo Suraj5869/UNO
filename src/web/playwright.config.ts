@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const backendUrl = 'http://127.0.0.1:7137';
-const frontendUrl = 'http://127.0.0.1:5173';
+const backendUrl = 'http://localhost:7137';
+const frontendUrl = 'http://localhost:5173';
 
 export default defineConfig({
   testDir: './e2e',
@@ -24,7 +24,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'dotnet run --project ../backend/Uno.Api/Uno.Api.csproj --no-launch-profile --urls http://127.0.0.1:7137',
+      command: 'dotnet run --project ../backend/Uno.Api/Uno.Api.csproj --no-launch-profile --urls http://localhost:7137',
       url: backendUrl + '/swagger/index.html',
       cwd: process.cwd(),
       env: { ASPNETCORE_ENVIRONMENT: 'Development' },
@@ -32,7 +32,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev -- --host 127.0.0.1',
+      command: 'npm run dev -- --host 0.0.0.0',
+      env: { VITE_API_URL: backendUrl, VITE_SIGNALR_URL: backendUrl + '/hubs/uno-room' },
       url: frontendUrl,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
