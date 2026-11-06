@@ -45,7 +45,7 @@ test('ten independent players can join, an eleventh is rejected, and the current
       const player = await createPlayer(browser, `Player ${index}`);
       players.push(player);
       await joinRoom(player, roomCode!);
-      await expect(host.page.getByRole('heading', { name: /Players 10\/10/ })).toBeVisible();
+      await expect(host.page.getByRole('heading', { name: new RegExp(`Players ${index}\\/10`) })).toBeVisible();
     }
 
     const eleventhPlayer = await createPlayer(browser, 'Player 11');
