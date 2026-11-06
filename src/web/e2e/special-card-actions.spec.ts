@@ -29,7 +29,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
   return { name, context, page };
 }
 
-async function startThreePlayerGame(hostPage: Page, ruleSet: 'official' | 'house') {
+async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: 'official' | 'house') {
   const players: TestPlayer[] = [
     { name: 'Host', context: null as unknown as BrowserContext, page: hostPage },
   ];
@@ -43,9 +43,6 @@ async function startThreePlayerGame(hostPage: Page, ruleSet: 'official' | 'house
 
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
-
-  const browser = (hostPage.context() as BrowserContext & { browser?: () => Browser }).browser?.();
-  if (!browser) throw new Error('Could not resolve the browser for multiplayer test players.');
 
   for (const name of ['Friend 1', 'Friend 2']) {
     const player = await createPlayer(browser, name);
@@ -174,7 +171,7 @@ async function closePlayers(players: TestPlayer[]) {
 }
 
 test('Skip advances over the next player', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.skip);
     await expect(players[(result.actorIndex + 2) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
@@ -246,7 +243,7 @@ test('Wild Draw Four challenge applies the correct outcome', async ({ browser, p
 });
 
 test('House Rules Draw Two creates a penalty, permits same-type stacking, and can be accepted', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'house');
+  const players = await startThreePlayerGame(browser, page, 'house');
   try {
     const first = await playTargetCard(players, specialLabels.drawTwo);
     const secondIndex = (first.actorIndex + 1) % 3;
@@ -257,16 +254,15 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
       has: second.page.locator('b', { hasText: specialLabels.drawTwo }),
     }).first();
 
-    if (await stackCard.count()) {
+    const didStack = (await stackCard.count()) > 0;
+    if (didStack) {
       await stackCard.click();
       await expect(players[(secondIndex + 1) % 3].page.getByText(/Draw penalty · 4 cards/)).toBeVisible();
     }
 
-    const penaltyPlayerIndex = stackCard && await stackCard.count()
-      ? (secondIndex + 1) % 3
-      : secondIndex;
+    const penaltyPlayerIndex = didStack ? (secondIndex + 1) % 3 : secondIndex;
     const penaltyPlayer = players[penaltyPlayerIndex];
-    const penaltyAmount = stackCard && await stackCard.count() ? 4 : 2;
+    const penaltyAmount = didStack ? 4 : 2;
     const handSize = await penaltyPlayer.page.locator('.hand-card').count();
 
     await penaltyPlayer.page.getByRole('button', { name: `Draw ${penaltyAmount}` }).click();
