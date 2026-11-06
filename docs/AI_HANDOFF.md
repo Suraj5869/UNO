@@ -37,7 +37,7 @@ The initial React + TypeScript + Vite web client is now in `src/web/`. It suppor
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Pull `main` and verify the new client locally: `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test with two browser sessions, especially private hands and all turn/penalty flows. The client includes SignalR automatic reconnect but reconnect/state recovery is an initial prototype and needs real multi-client testing. Add automated API/SignalR integration tests after local verification.
+Pull `main`; run `npm run test:e2e:special -- --workers=1 --reporter=list` from `src/web` and fix any failures without weakening rule assertions. Then add guaranteed deterministic test-deal support (Development/test only) for House Draw Two stacking and both Wild Draw Four challenge branches, followed by multi-client UNO call/catch, full match completion/Play Again, reconnect, and timeout browser scenarios. Also verify the new client locally: `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test with two browser sessions, especially private hands and all turn/penalty flows. The client includes SignalR automatic reconnect but reconnect/state recovery is an initial prototype and needs real multi-client testing. Add automated API/SignalR integration tests after local verification.
 
 ## Constraints
 - Inspect existing code before editing.
