@@ -70,14 +70,14 @@ async function findPlayableNumberCard(page: Page) {
 
     const topClasses = topCard.className;
     const activeColor = ['red', 'yellow', 'green', 'blue']
-      .find(color => topClasses.split(/\\s+/).includes(color))
+      .find(color => topClasses.split(/\s+/).includes(color))
       ?? /selected-wild-color-(red|yellow|green|blue)/.exec(topClasses)?.[1];
     const topLabel = topCard.querySelector('b')?.textContent?.trim();
 
     return cards.findIndex(card => {
       const label = card.querySelector('b')?.textContent?.trim() ?? '';
-      if (!/^\\d$/.test(label)) return false;
-      const cardClasses = card.className.split(/\\s+/);
+      if (!/^\d$/.test(label)) return false;
+      const cardClasses = card.className.split(/\s+/);
       return (!!activeColor && cardClasses.includes(activeColor)) || label === topLabel;
     });
   });
