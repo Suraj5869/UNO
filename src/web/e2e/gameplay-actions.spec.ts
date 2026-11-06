@@ -138,7 +138,7 @@ test('a legal number card is played and the other client receives the next turn'
 
 test('drawing cards updates the hand and passing a playable draw advances the turn', async ({ browser, page }) => {
   const friend = await createPlayer(browser, 'Friend');
-  const players = await startTwoPlayerGame(browser, page, friend);
+  const players = await startTwoPlayerGame(page, friend);
 
   try {
     // A playable draw occurs naturally with repeated draws. Stop only when
