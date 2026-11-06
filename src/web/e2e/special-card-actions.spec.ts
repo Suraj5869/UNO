@@ -13,6 +13,7 @@ type SpecialCardResult = {
   handSizeBeforePlay: number;
   activeColorBeforePlay: string;
   offenderHadMatchingColor: boolean;
+  directionBeforePlay: 'clockwise' | 'counterclockwise';
 };
 
 const specialLabels: Record<string, RegExp> = {
@@ -86,6 +87,18 @@ async function chooseWildColor(page: Page, color: 'Red' | 'Yellow' | 'Green' | '
   await expect(page.locator('.color-picker')).toHaveCount(0);
 }
 
+async function currentDirection(page: Page): Promise<'clockwise' | 'counterclockwise'> {
+  const glyph = (await page.locator('.direction-count strong').textContent())?.trim();
+  if (glyph === '↻') return 'clockwise';
+  if (glyph === '↺') return 'counterclockwise';
+  throw new Error(`Unknown turn direction indicator: ${glyph}`);
+}
+
+function playerAtOffset(actorIndex: number, offset: number, direction: 'clockwise' | 'counterclockwise', playerCount: number): number {
+  const step = direction === 'clockwise' ? 1 : -1;
+  return (actorIndex + (offset * step) + playerCount) % playerCount;
+}
+
 async function activeColor(page: Page): Promise<string> {
   return page.locator('.top-card').evaluate(element => {
     const classes = Array.from(element.classList);
@@ -120,6 +133,7 @@ async function playTargetCard(
         await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
       } else {
         const activeColorBeforePlay = await activeColor(actor.page);
+        const directionBeforePlay = await currentDirection(actor.page);
         const offenderHadMatchingColor = matcher === specialLabels.wildDrawFour
           ? await hasMatchingColorInHand(actor.page, activeColorBeforePlay)
           : false;
@@ -130,7 +144,7 @@ async function playTargetCard(
         if (handSizeBeforePlay === 2) {
           await actor.page.getByRole('button', { name: 'UNO!' }).click();
         }
-        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor };
+        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
       }
     } else {
       await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
@@ -146,6 +160,7 @@ async function playTargetCard(
       if (await cardMatches(drawnCard, matcher) && !(await drawnCard.isDisabled())) {
         const handSizeBeforePlay = await actor.page.locator('.hand-card').count();
         const activeColorBeforePlay = await activeColor(actor.page);
+        const directionBeforePlay = await currentDirection(actor.page);
         const offenderHadMatchingColor = matcher === specialLabels.wildDrawFour
           ? await hasMatchingColorInHand(actor.page, activeColorBeforePlay)
           : false;
@@ -156,7 +171,7 @@ async function playTargetCard(
         if (handSizeBeforePlay === 2) {
           await actor.page.getByRole('button', { name: 'UNO!' }).click();
         }
-        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor };
+        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
       }
       await actor.page.getByRole('button', { name: 'Pass' }).click();
     }
@@ -173,8 +188,10 @@ test('Skip advances over the next player', async ({ browser, page }) => {
   const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.skip);
-    await expect(players[(result.actorIndex + 2) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
-    await expect(players[(result.actorIndex + 1) % 3].page.getByRole('heading', { name: /Waiting on/ })).toBeVisible();
+    const skippedIndex = playerAtOffset(result.actorIndex, 2, result.directionBeforePlay, players.length);
+    const nextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
+    await expect(players[skippedIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[nextIndex].page.getByRole('heading', { name: /Waiting on/ })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -184,8 +201,10 @@ test('Reverse changes direction and sends play to the previous player', async ({
   const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.reverse);
-    await expect(players[result.actorIndex].page.locator('.direction-count strong')).toHaveText('↺');
-    await expect(players[(result.actorIndex + 2) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    const expectedDirection = result.directionBeforePlay === 'clockwise' ? '↺' : '↻';
+    const reverseNextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay === 'clockwise' ? 'counterclockwise' : 'clockwise', players.length);
+    await expect(players[result.actorIndex].page.locator('.direction-count strong')).toHaveText(expectedDirection);
+    await expect(players[reverseNextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -196,7 +215,8 @@ test('Wild lets the player choose a color and passes the turn', async ({ browser
   try {
     const result = await playTargetCard(players, specialLabels.wild, 'Green');
     await expect(players[result.actorIndex].page.locator('.top-card')).toHaveClass(/selected-wild-color-green/);
-    await expect(players[(result.actorIndex + 1) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    const nextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
+    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -206,7 +226,7 @@ test('Wild Draw Four can be accepted and applies four cards', async ({ browser, 
   const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Red');
-    const challengerIndex = (result.actorIndex + 1) % 3;
+    const challengerIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
     const challenger = players[challengerIndex];
     const handSize = await challenger.page.locator('.hand-card').count();
 
@@ -245,7 +265,7 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
   const players = await startThreePlayerGame(browser, page, 'house');
   try {
     const first = await playTargetCard(players, specialLabels.drawTwo);
-    const secondIndex = (first.actorIndex + 1) % 3;
+    const secondIndex = playerAtOffset(first.actorIndex, 1, first.directionBeforePlay, players.length);
     const second = players[secondIndex];
     await expect(second.page.getByText(/Draw penalty · 2 cards/)).toBeVisible();
 
@@ -256,17 +276,21 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
     const didStack = (await stackCard.count()) > 0;
     if (didStack) {
       await stackCard.click();
-      await expect(players[(secondIndex + 1) % 3].page.getByText(/Draw penalty · 4 cards/)).toBeVisible();
+      const stackedPenaltyIndex = playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length);
+      await expect(players[stackedPenaltyIndex].page.getByText(/Draw penalty · 4 cards/)).toBeVisible();
     }
 
-    const penaltyPlayerIndex = didStack ? (secondIndex + 1) % 3 : secondIndex;
+    const penaltyPlayerIndex = didStack
+      ? playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length)
+      : secondIndex;
     const penaltyPlayer = players[penaltyPlayerIndex];
     const penaltyAmount = didStack ? 4 : 2;
     const handSize = await penaltyPlayer.page.locator('.hand-card').count();
 
     await penaltyPlayer.page.getByRole('button', { name: `Draw ${penaltyAmount}` }).click();
     await expect(penaltyPlayer.page.locator('.hand-card')).toHaveCount(handSize + penaltyAmount);
-    await expect(players[(penaltyPlayerIndex + 1) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    const nextIndex = playerAtOffset(penaltyPlayerIndex, 1, first.directionBeforePlay, players.length);
+    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
