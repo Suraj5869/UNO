@@ -55,3 +55,13 @@ jobs:
       - name: Run end-to-end tests
         working-directory: src/web
         run: npm run test:e2e
+      - name: Upload Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics-${{ github.run_id }}
+          path: |
+            src/web/playwright-report/
+            src/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
