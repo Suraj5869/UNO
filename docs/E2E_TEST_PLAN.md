@@ -23,8 +23,8 @@ Verify the complete player journey through the real web client, REST API, Signal
 | Multiplayer capacity | 2, 5 and 10 independent players; eleventh player rejected | 10-player browser scenario added; not yet executed |
 | Host permissions | Non-host cannot change rules or start; host departure promotes next host | Engine-level tests exist; browser coverage pending |
 | Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
-| Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Browser tests added for legal number-card play and draw/pass; special-card browser coverage pending |
-| Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Engine-level coverage exists; browser coverage pending |
+| Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Number/draw/pass and special-card browser scenarios added; special-card suite not yet executed |
+| Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Browser scenarios added for House Draw Two penalty/conditional stacking and Wild Draw Four accept/challenge; guaranteed deterministic stack/challenge variants pending |
 | UNO | Call window, missed UNO, catch penalty, expired window | Engine-level coverage exists; multi-client browser coverage pending |
 | Timeout | Normal turn timeout, pending penalty timeout, client countdown synchronization | Engine behavior exists; browser coverage pending |
 | Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Basic lobby/game SignalR path exists; robust browser coverage pending |
