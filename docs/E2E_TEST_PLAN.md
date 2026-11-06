@@ -23,7 +23,7 @@ Verify the complete player journey through the real web client, REST API, Signal
 | Multiplayer capacity | 2, 5 and 10 independent players; eleventh player rejected | 10-player browser scenario added; not yet executed |
 | Host permissions | Non-host cannot change rules or start; host departure promotes next host | Engine-level tests exist; browser coverage pending |
 | Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
-| Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Engine-level coverage exists; browser coverage pending |
+| Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Browser tests added for legal number-card play and draw/pass; special-card browser coverage pending |
 | Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Engine-level coverage exists; browser coverage pending |
 | UNO | Call window, missed UNO, catch penalty, expired window | Engine-level coverage exists; multi-client browser coverage pending |
 | Timeout | Normal turn timeout, pending penalty timeout, client countdown synchronization | Engine behavior exists; browser coverage pending |
@@ -49,7 +49,7 @@ Verify the complete player journey through the real web client, REST API, Signal
 From `src/web`:
 
 - `npm run test:e2e` — all browser E2E tests.
-- `npm run test:e2e:multiplayer` — the ten-player capacity and current-player departure scenario.
+- `npm run test:e2e:multiplayer` — the ten-player capacity and current-player departure scenario.\n- `npm run test:e2e:gameplay` — legal number-card play and draw/pass browser scenarios.
 
 Playwright retains traces, screenshots and video on failure. GitHub Actions uploads the HTML report and test results as a workflow artifact.
 
