@@ -42,6 +42,8 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: '
   await hostPage.getByRole('button', { name: /Create private room/ }).click();
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
 
+  await expect(hostPage.getByText(ruleSet === 'house' ? 'House Rules' : 'Official Rules', { exact: true })).toBeVisible();
+
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
