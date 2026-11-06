@@ -190,10 +190,10 @@ test('Skip advances over the next player', async ({ browser, page }) => {
   const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.skip);
-    const skippedIndex = playerAtOffset(result.actorIndex, 2, result.directionBeforePlay, players.length);
-    const nextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
-    await expect(players[skippedIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
-    await expect(players[nextIndex].page.getByRole('heading', { name: /Waiting on/ })).toBeVisible();
+    const skippedIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
+    const nextIndex = playerAtOffset(result.actorIndex, 2, result.directionBeforePlay, players.length);
+    await expect(players[skippedIndex].page.getByRole('heading', { name: /Waiting on/ })).toBeVisible();
+    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
