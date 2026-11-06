@@ -49,7 +49,8 @@ Verify the complete player journey through the real web client, REST API, Signal
 From `src/web`:
 
 - `npm run test:e2e` — all browser E2E tests.
-- `npm run test:e2e:multiplayer` — the ten-player capacity and current-player departure scenario.\n- `npm run test:e2e:gameplay` — legal number-card play and draw/pass browser scenarios.
+- `npm run test:e2e:multiplayer` — the ten-player capacity and current-player departure scenario.
+- `npm run test:e2e:gameplay` — legal number-card play and draw/pass browser scenarios.
 
 Playwright retains traces, screenshots and video on failure. GitHub Actions uploads the HTML report and test results as a workflow artifact.
 
@@ -57,8 +58,9 @@ Playwright retains traces, screenshots and video on failure. GitHub Actions uplo
 
 1. Multi-player fixtures and capacity/leave scenarios.
 2. Lobby permissions, invalid joins, host departure and room lifecycle.
-3. Gameplay action flows, Official/House rules, UNO and winner/rematch flows.
-4. Reconnect, timeout, concurrent actions, privacy and authorization.
-5. Desktop/mobile viewport coverage and repeated-run stability.
+3. Core gameplay browser flows: legal number-card play, draw, and pass.
+4. Deterministic special-card scenarios: Skip, Reverse, Draw Two, Wild, Wild Draw Four, UNO and winner/rematch flows.
+5. Reconnect, timeout, concurrent actions, privacy and authorization.
+6. Desktop/mobile viewport coverage and repeated-run stability.
 
 Do not call the E2E suite comprehensive or deployment-ready until the full matrix has been implemented and the complete suite has passed repeatedly in CI.
