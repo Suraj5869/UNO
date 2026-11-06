@@ -113,7 +113,7 @@ test('a legal number card is played and the other client receives the next turn'
         }
 
         if (handSize === 1) {
-          await expect(current.page.getByRole('dialog', { name: /MATCH COMPLETE/ })).toBeVisible();
+          await expect(current.page.locator('.game-over-overlay')).toBeVisible();
         } else {
           await expect(other.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
         }
