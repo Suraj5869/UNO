@@ -15,7 +15,6 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 }
 
 async function startTwoPlayerGame(
-  browser: Browser,
   hostPage: Page,
   friend: TestPlayer,
 ) {
@@ -92,7 +91,7 @@ async function waitForDrawResolution(page: Page, otherPage: Page) {
 
 test('a legal number card is played and the other client receives the next turn', async ({ browser, page }) => {
   const friend = await createPlayer(browser, 'Friend');
-  const players = await startTwoPlayerGame(browser, page, friend);
+  const players = await startTwoPlayerGame(page, friend);
 
   try {
     // Keep the scenario independent of the shuffled deal: when a player has
