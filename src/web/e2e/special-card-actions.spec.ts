@@ -232,7 +232,8 @@ test('Wild Draw Four can be accepted and applies four cards', async ({ browser, 
 
     await challenger.page.getByRole('button', { name: 'Accept +4' }).click();
     await expect(challenger.page.locator('.hand-card')).toHaveCount(handSize + 4);
-    await expect(players[(challengerIndex + 1) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
+    await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -242,7 +243,7 @@ test('Wild Draw Four challenge applies the correct outcome', async ({ browser, p
   const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Yellow');
-    const challengerIndex = (result.actorIndex + 1) % 3;
+    const challengerIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
     const offender = players[result.actorIndex];
     const challenger = players[challengerIndex];
     const offenderHandSize = await offender.page.locator('.hand-card').count();
@@ -254,7 +255,8 @@ test('Wild Draw Four challenge applies the correct outcome', async ({ browser, p
       await expect(challenger.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
     } else {
       await expect(challenger.page.locator('.hand-card')).toHaveCount(challengerHandSize + 6);
-      await expect(players[(challengerIndex + 1) % 3].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+      const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
+      await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
     }
   } finally {
     await closePlayers(players);
