@@ -95,3 +95,11 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 ## Wild color picker dismissal
 
 - The pending Wild/Wild Draw Four color picker is cleared whenever the local player performs another game action and whenever it is no longer their turn. This prevents a stale color picker from remaining visible after playing another card, drawing, or resolving a turn.
+
+## Automated E2E testing rollout
+
+- Added a Playwright multiplayer capacity scenario using ten independent browser contexts, an eleventh-player full-room rejection, match start, per-player seven-card hand checks, and current-player departure with state verification on all remaining clients.
+- Added `npm run test:e2e:multiplayer` for the focused scenario.
+- Playwright now retains a named test-results directory and an HTML report in CI; GitHub Actions uploads diagnostics after every E2E run.
+- The new scenario has been committed but has not yet been executed locally or confirmed green in GitHub Actions. Do not treat it as passing until CI reports success.
+- See [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the coverage matrix and rollout order.
