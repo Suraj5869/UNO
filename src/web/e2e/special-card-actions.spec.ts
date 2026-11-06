@@ -110,9 +110,8 @@ async function playTargetCard(
   for (let attempt = 0; attempt < 160; attempt++) {
     const actorIndex = await currentTurnIndex(players);
     const actor = players[actorIndex];
-    const otherPlayers = players.filter((_, index) => index !== actorIndex);
     const playable = actor.page.locator('.hand-card:not([disabled])');
-    let target = playable.filter({ has: actor.page.locator('b', { hasText: matcher }) }).first();
+    const target = playable.filter({ has: actor.page.locator('b', { hasText: matcher }) }).first();
 
     if (await target.count()) {
       const handSizeBeforePlay = await actor.page.locator('.hand-card').count();
@@ -182,7 +181,7 @@ test('Skip advances over the next player', async ({ browser, page }) => {
 });
 
 test('Reverse changes direction and sends play to the previous player', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.reverse);
     await expect(players[result.actorIndex].page.locator('.direction-count strong')).toHaveText('↺');
@@ -193,7 +192,7 @@ test('Reverse changes direction and sends play to the previous player', async ({
 });
 
 test('Wild lets the player choose a color and passes the turn', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.wild, 'Green');
     await expect(players[result.actorIndex].page.locator('.top-card')).toHaveClass(/selected-wild-color-green/);
@@ -204,7 +203,7 @@ test('Wild lets the player choose a color and passes the turn', async ({ browser
 });
 
 test('Wild Draw Four can be accepted and applies four cards', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Red');
     const challengerIndex = (result.actorIndex + 1) % 3;
@@ -220,7 +219,7 @@ test('Wild Draw Four can be accepted and applies four cards', async ({ browser, 
 });
 
 test('Wild Draw Four challenge applies the correct outcome', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official');
   try {
     const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Yellow');
     const challengerIndex = (result.actorIndex + 1) % 3;
