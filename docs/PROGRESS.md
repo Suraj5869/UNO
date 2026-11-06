@@ -103,3 +103,10 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Playwright now retains a named test-results directory and an HTML report in CI; GitHub Actions uploads diagnostics after every E2E run.
 - The new scenario has been committed but has not yet been executed locally or confirmed green in GitHub Actions. Do not treat it as passing until CI reports success.
 - See [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the coverage matrix and rollout order.
+
+## Special-card browser E2E rollout
+
+- Added `special-card-actions.spec.ts` with browser scenarios for Skip, Reverse, Wild color selection, Wild Draw Four acceptance and challenge outcome, and House Rules Draw Two penalty resolution with same-type stacking when the next player has a +2.
+- Added `npm run test:e2e:special` for the focused suite.
+- These scenarios use independent browser contexts for three players and exercise the actual REST/SignalR/game-engine path. They have been committed but are not yet run locally or verified in CI.
+- The House Rules stacking scenario currently checks stacking when the shuffled hand permits it; deterministic test-only dealing is still required to guarantee stack coverage and both Wild Draw Four challenge branches every run. UNO call/catch, full match completion/rematch, reconnect, and timeout browser scenarios remain next.
