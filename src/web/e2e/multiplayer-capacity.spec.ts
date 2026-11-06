@@ -81,7 +81,10 @@ test('ten independent players can join, an eleventh is rejected, and the current
     const remainingPlayers = players.slice(0, 10).filter(player => player !== currentPlayer);
     for (const player of remainingPlayers) {
       await expect(player.page.locator('.opponent')).toHaveCount(8);
-      await expect(player.page.locator('.opponent strong', { hasText: currentPlayerName! })).toHaveCount(0);
+      // Match the complete player name: "Player 1" must not match "Player 10".
+      await expect(
+        player.page.locator('.opponent strong').filter({ hasText: new RegExp(`^${currentPlayerName!}$`) }),
+      ).toHaveCount(0);
       await expect(player.page.locator('.hand-card')).toHaveCount(7);
     }
   } finally {
