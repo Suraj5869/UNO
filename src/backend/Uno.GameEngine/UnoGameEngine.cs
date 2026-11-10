@@ -352,6 +352,12 @@ public sealed class UnoGameEngine
                 "This player does not have an outstanding UNO call.");
         }
 
+        if (game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow >= deadline)
+        {
+            throw new InvalidOperationException(
+                "The three-second UNO call window has expired.");
+        }
+
         var player = game.Players.FirstOrDefault(candidate => candidate.Id == playerId);
         if (player is null || player.Hand.Count != 1)
         {

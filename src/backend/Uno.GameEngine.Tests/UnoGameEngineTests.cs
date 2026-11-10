@@ -364,6 +364,29 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void CallUno_AfterGracePeriodExpires_ThrowsAndLeavesTargetAvailableForCatch()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+        var catcher = game.CurrentPlayer;
+
+        Thread.Sleep(3100);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CallUno(game, target.Id));
+        Assert.Equal(target.Id, game.PlayerAwaitingUnoCallId);
+
+        var originalHandSize = target.Hand.Count;
+        engine.CatchUno(game, catcher.Id, target.Id);
+
+        Assert.Equal(originalHandSize + 2, target.Hand.Count);
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
     public void CatchUno_WhenCallWasMissed_TargetDrawsTwoCards()
     {
         var game = CreateGameWithTwoCardCurrentPlayer(out var card);

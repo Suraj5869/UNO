@@ -37,7 +37,7 @@ The initial React + TypeScript + Vite web client is now in `src/web/`. It suppor
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any real failures without weakening assertions. The new scenarios cover successful UNO calls from two cards, synchronized celebration across all three clients, catch-button gating during the grace period, catching from a non-current player, and the +2 penalty. Then add full match completion/Play Again browser scenarios, followed by reconnect and timeout browser scenarios. Verify locally with dotnet build src/backend/Uno.sln, dotnet test src/backend/Uno.sln, and cd src/web && npm run build. Do not create a feature branch; commit directly to main.
+Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any real failures without weakening assertions. The new scenarios cover successful UNO calls from two cards, synchronized celebration across all three clients, catch-button gating during the grace period, late-call rejection, catching from a non-current player, and the +2 penalty. Then add full match completion/Play Again browser scenarios, followed by reconnect and timeout browser scenarios. Verify locally with dotnet build src/backend/Uno.sln, dotnet test src/backend/Uno.sln, and cd src/web && npm run build. Do not create a feature branch; commit directly to main.
 
 ## Constraints
 - Inspect existing code before editing.

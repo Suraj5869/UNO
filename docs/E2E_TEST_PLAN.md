@@ -25,7 +25,7 @@ Verify the complete player journey through the real web client, REST API, Signal
 | Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
 | Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Number/draw/pass and special-card browser scenarios added; special-card suite not yet executed |
 | Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Browser scenarios added for House Draw Two penalty/conditional stacking and Wild Draw Four accept/challenge; guaranteed deterministic stack/challenge variants pending |
-| UNO | Call window, missed UNO, catch penalty, expired window | Multi-client browser scenarios added for successful call, catch-button gating during the grace period, non-current-player catch, and +2 penalty; execution pending |
+| UNO | Call window, missed UNO, catch penalty, expired window | Multi-client browser scenarios added for successful call, late-call rejection, catch-button gating, non-current-player catch, and +2 penalty; execution pending |
 | Timeout | Normal turn timeout, pending penalty timeout, client countdown synchronization | Engine behavior exists; browser coverage pending |
 | Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Basic lobby/game SignalR path exists; robust browser coverage pending |
 | Privacy/security | Token authorization, unauthorized host actions, own-hand-only game state, stale token after leave | Some server-side protections exist; API/SignalR security E2E pending |

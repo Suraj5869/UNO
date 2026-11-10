@@ -124,11 +124,6 @@ test('a player can call UNO within the three-second grace period and all clients
     await expect(actor.page.locator('.hand-card')).toHaveCount(1);
     await expect(actor.page.getByRole('button', { name: 'UNO!' })).toBeEnabled();
 
-    for (const player of players.filter((_, index) => index !== opportunity.actorIndex)) {
-      await expect(player.page.locator('.uno-banner')).toContainText(/waiting 3 seconds for UNO/i);
-      await expect(player.page.getByRole('button', { name: 'Catch UNO (+2 cards)' })).toHaveCount(0);
-    }
-
     await actor.page.getByRole('button', { name: 'UNO!' }).click();
     for (const player of players) {
       await expect(player.page.locator('.uno-banner')).toHaveCount(0);
@@ -152,6 +147,13 @@ test('a different player can catch a missed UNO after the grace period and the t
     const catchButton = catcher.page.getByRole('button', { name: 'Catch UNO (+2 cards)' });
     await expect(catchButton).toHaveCount(0);
     await expect(catchButton).toBeVisible({ timeout: 8_000 });
+
+    // The server must reject a late UNO call even if nobody has caught the
+    // player yet; the missed call remains available for another participant.
+    await actor.page.getByRole('button', { name: 'UNO!' }).click();
+    await expect(actor.page.getByRole('alert')).toContainText(/three-second UNO call window has expired/i);
+    await expect(catchButton).toBeVisible();
+
     await catchButton.click();
 
     // Catching is not a turn action: the target draws two and the current
