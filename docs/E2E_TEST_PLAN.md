@@ -25,7 +25,7 @@ Verify the complete player journey through the real web client, REST API, Signal
 | Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
 | Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Number/draw/pass and special-card browser scenarios added; special-card suite not yet executed |
 | Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Browser scenarios added for House Draw Two penalty/conditional stacking and Wild Draw Four accept/challenge; guaranteed deterministic stack/challenge variants pending |
-| UNO | Call window, missed UNO, catch penalty, expired window | Engine-level coverage exists; multi-client browser coverage pending |
+| UNO | Call window, missed UNO, catch penalty, expired window | Multi-client browser scenarios added for successful call, catch-button gating during the grace period, non-current-player catch, and +2 penalty; execution pending |
 | Timeout | Normal turn timeout, pending penalty timeout, client countdown synchronization | Engine behavior exists; browser coverage pending |
 | Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Basic lobby/game SignalR path exists; robust browser coverage pending |
 | Privacy/security | Token authorization, unauthorized host actions, own-hand-only game state, stale token after leave | Some server-side protections exist; API/SignalR security E2E pending |
@@ -59,8 +59,9 @@ Playwright retains traces, screenshots and video on failure. GitHub Actions uplo
 1. Multi-player fixtures and capacity/leave scenarios.
 2. Lobby permissions, invalid joins, host departure and room lifecycle.
 3. Core gameplay browser flows: legal number-card play, draw, and pass.
-4. Deterministic special-card scenarios: Skip, Reverse, Draw Two, Wild, Wild Draw Four, UNO and winner/rematch flows.
-5. Reconnect, timeout, concurrent actions, privacy and authorization.
-6. Desktop/mobile viewport coverage and repeated-run stability.
+4. Special-card scenarios: Skip, Reverse, Draw Two, Wild and Wild Draw Four.
+5. UNO call/catch and grace-period scenarios, followed by full match completion and Play Again.
+6. Reconnect, timeout, concurrent actions, privacy and authorization.
+7. Desktop/mobile viewport coverage and repeated-run stability.
 
 Do not call the E2E suite comprehensive or deployment-ready until the full matrix has been implemented and the complete suite has passed repeatedly in CI.

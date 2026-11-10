@@ -1,6 +1,6 @@
 # Progress Tracker
 
-Last updated: 2026-10-30
+Last updated: 2026-11-10
 
 ## Current phase
 
@@ -44,7 +44,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 - Wild Draw Four challenge success/failure is now covered in both rule sets; draw-pile exhaustion and card-conservation behavior still need more automated coverage.
 - Server-enforced 30-second turn timeout is implemented with a live countdown. Normal timeout draws one card and skips; unresolved penalty timeout accepts the penalty and skips.
 - Official initial discard behavior is still temporarily simplified to a number card.
-- UNO-call actions are implemented in the engine and exposed through the SignalR hub; end-to-end multi-client call-window behavior still needs testing.
+- UNO-call actions are implemented in the engine and exposed through the SignalR hub; multi-client Playwright scenarios have now been added for successful calls, grace-period gating, missed-call catch, and the two-card penalty. The new browser suite still needs a local run.
 - API room endpoints and SignalR hub now compile in CI and the engine test suite passes. Manual two-client SignalR smoke tests are still outstanding. The room registry and tokens are process-local; account authentication, durable storage, room expiry, collision retry, and rate limiting are not implemented.
 - The full solution test suite passes in GitHub Actions. Dedicated API/SignalR integration tests and manual multi-client smoke tests remain to be added/run.
 - First React + TypeScript + Vite web client added under `src/web/`: room creation/join, host rule selection and start, SignalR lobby updates/reconnect, playable card hand, wild-color selection, clickable draw pile, contextual accept/challenge/stack/pass choices (no permanent Your Move action bar), UNO call and catch, room-wide UNO-call celebration overlay, and a full-screen winner modal. The latest contextual-action changes are committed; CI and browser testing are still required.
@@ -110,3 +110,12 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Added `npm run test:e2e:special` for the focused suite.
 - These scenarios use independent browser contexts for three players and exercise the actual REST/SignalR/game-engine path. They have been committed but are not yet run locally or verified in CI.
 - The House Rules stacking scenario currently checks stacking when the shuffled hand permits it; deterministic test-only dealing is still required to guarantee stack coverage and both Wild Draw Four challenge branches every run. UNO call/catch, full match completion/rematch, reconnect, and timeout browser scenarios remain next.
+
+
+## UNO call/catch browser E2E
+
+- Added uno-call-actions.spec.ts with three independent browser contexts.
+- The fixture advances a real shuffled match using legal number-card plays and draws until a player can move from two cards to one; it does not seed or inspect opponents' hands.
+- Successful-call coverage verifies the caller can call within the three-second grace period and all clients receive the UNO celebration.
+- Missed-call coverage verifies the catch action is hidden during the grace period, a different non-current player can catch afterward, the target draws two cards, and the active turn does not change.
+- Added npm run test:e2e:uno. The suite is committed but not yet executed; do not mark it passing until the local Playwright run confirms it.
