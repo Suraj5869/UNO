@@ -78,6 +78,15 @@ async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
   throw new Error('No player received the active turn.');
 }
 
+async function waitForTurnChange(players: TestPlayer[], previousActorIndex: number): Promise<number> {
+  await expect.poll(
+    () => currentTurnIndex(players),
+    { timeout: 15_000, message: 'Wait for the server to publish the next active player' },
+  ).not.toBe(previousActorIndex);
+
+  return currentTurnIndex(players);
+}
+
 async function cardMatches(card: ReturnType<Page['locator']>, matcher: RegExp): Promise<boolean> {
   const label = (await card.locator('b').textContent())?.trim() ?? '';
   return matcher.test(label);
@@ -146,6 +155,7 @@ async function playTargetCard(
         if (handSizeBeforePlay === 2) {
           await actor.page.getByRole('button', { name: 'UNO!' }).click();
         }
+        await waitForTurnChange(players, actorIndex);
         return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
       }
     } else {
@@ -173,6 +183,7 @@ async function playTargetCard(
         if (handSizeBeforePlay === 2) {
           await actor.page.getByRole('button', { name: 'UNO!' }).click();
         }
+        await waitForTurnChange(players, actorIndex);
         return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
       }
       await actor.page.getByRole('button', { name: 'Pass' }).click();
@@ -205,8 +216,15 @@ test('Reverse changes direction and sends play to the previous player', async ({
     const result = await playTargetCard(players, specialLabels.reverse);
     const expectedDirection = result.directionBeforePlay === 'clockwise' ? '↺' : '↻';
     const reverseNextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay === 'clockwise' ? 'counterclockwise' : 'clockwise', players.length);
-    await expect(players[result.actorIndex].page.locator('.direction-count strong')).toHaveText(expectedDirection);
-    await expect(players[reverseNextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect.poll(
+      () => currentTurnIndex(players),
+      { timeout: 15_000, message: 'Reverse should transfer the turn in the new direction' },
+    ).toBe(reverseNextIndex);
+
+    // Direction is shared game state; verify it reached every connected client.
+    for (const player of players) {
+      await expect(player.page.locator('.direction-count strong')).toHaveText(expectedDirection);
+    }
   } finally {
     await closePlayers(players);
   }
@@ -270,6 +288,12 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
   try {
     const first = await playTargetCard(players, specialLabels.drawTwo);
     const secondIndex = playerAtOffset(first.actorIndex, 1, first.directionBeforePlay, players.length);
+    // The helper waits for the server's turn update before returning.
+    await expect.poll(
+      () => currentTurnIndex(players),
+      { timeout: 15_000, message: 'Draw Two should make the next player active' },
+    ).toBe(secondIndex);
+
     const second = players[secondIndex];
     await expect(second.page.getByText(/Draw penalty · 2 cards/)).toBeVisible();
 
@@ -281,6 +305,10 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
     if (didStack) {
       await stackCard.click();
       const stackedPenaltyIndex = playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length);
+      await expect.poll(
+        () => currentTurnIndex(players),
+        { timeout: 15_000, message: 'Stacked Draw Two should transfer the penalty to the next player' },
+      ).toBe(stackedPenaltyIndex);
       await expect(players[stackedPenaltyIndex].page.getByText(/Draw penalty · 4 cards/)).toBeVisible();
     }
 
