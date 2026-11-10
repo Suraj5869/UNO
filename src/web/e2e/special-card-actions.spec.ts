@@ -79,10 +79,13 @@ async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
 }
 
 async function waitForTurnChange(players: TestPlayer[], previousActorIndex: number): Promise<number> {
-  await expect.poll(
-    () => currentTurnIndex(players),
-    { timeout: 15_000, message: 'Wait for the server to publish the next active player' },
-  ).not.toBe(previousActorIndex);
+  // Wait for the player who submitted the action to receive the state update.
+  // Scanning for any "Your turn!" heading can return a stale heading from that
+  // same page and incorrectly hide the fact that its state has not changed.
+  await expect(
+    players[previousActorIndex].page.getByRole('heading', { name: /^Waiting on / }),
+    'The previous actor should no longer own the active turn',
+  ).toBeVisible({ timeout: 15_000 });
 
   return currentTurnIndex(players);
 }
