@@ -40,12 +40,25 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<T
 }
 
 async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
+  let matchCompleted = false;
   await expect.poll(async () => {
+    const completed = await Promise.all(
+      players.map(player => player.page.locator('.game-over-overlay').count()),
+    );
+    if (completed.some(count => count > 0)) {
+      matchCompleted = true;
+      return 0;
+    }
+
     for (let index = 0; index < players.length; index++) {
       if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
     }
     return -1;
   }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
+
+  if (matchCompleted) {
+    throw new Error('The match completed before the UNO-call scenario was reached.');
+  }
 
   for (let index = 0; index < players.length; index++) {
     if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
@@ -53,21 +66,28 @@ async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
   throw new Error('No player received the active turn.');
 }
 
-async function findPlayableNumberCard(page: Page): Promise<number> {
-  return page.locator('.hand-card').evaluateAll(cards => {
+async function isPlayableNumberCard(page: Page, cardIndex: number): Promise<boolean> {
+  return page.locator('.hand-card').evaluateAll((cards, index) => {
     const topCard = document.querySelector('.top-card');
-    if (!topCard) return -1;
+    const card = cards[index as number];
+    if (!topCard || !card) return false;
     const classes = Array.from(topCard.classList);
     const activeColor = ['red', 'yellow', 'green', 'blue'].find(color => classes.includes(color))
       ?? /selected-wild-color-(red|yellow|green|blue)/.exec(classes.join(' '))?.[1];
     const topLabel = topCard.querySelector('b')?.textContent?.trim();
-    return cards.findIndex(card => {
-      const label = card.querySelector('b')?.textContent?.trim() ?? '';
-      if (!/^\d$/.test(label)) return false;
-      const cardClasses = Array.from(card.classList);
-      return (!!activeColor && cardClasses.includes(activeColor)) || label === topLabel;
-    });
-  });
+    const label = card.querySelector('b')?.textContent?.trim() ?? '';
+    if (!/^\d$/.test(label)) return false;
+    const cardClasses = Array.from(card.classList);
+    return (!!activeColor && cardClasses.includes(activeColor)) || label === topLabel;
+  }, cardIndex);
+}
+
+async function findPlayableNumberCard(page: Page): Promise<number> {
+  const count = await page.locator('.hand-card').count();
+  for (let index = 0; index < count; index++) {
+    if (await isPlayableNumberCard(page, index)) return index;
+  }
+  return -1;
 }
 
 async function waitForActorToFinishTurn(player: TestPlayer) {
@@ -84,7 +104,9 @@ async function advanceUntilUnoOpportunity(players: TestPlayer[]): Promise<UnoOpp
     const handSize = await actor.page.locator('.hand-card').count();
     const playableIndex = await findPlayableNumberCard(actor.page);
 
-    if (playableIndex >= 0) {
+    // Never play a final card while preparing the scenario. Doing so could
+    // finish the random match before the UNO assertions run.
+    if (playableIndex >= 0 && handSize > 1) {
       await actor.page.locator('.hand-card').nth(playableIndex).click();
       await expect(actor.page.locator('.hand-card')).toHaveCount(handSize - 1);
       await waitForActorToFinishTurn(actor);
@@ -102,10 +124,13 @@ async function advanceUntilUnoOpportunity(players: TestPlayer[]): Promise<UnoOpp
     { timeout: 12_000 }).toBeTruthy();
 
     if (await actor.page.locator('.pass-decision').count()) {
-      const drawnCard = actor.page.locator('.hand-card').last();
-      const label = (await drawnCard.locator('b').textContent())?.trim() ?? '';
-      if (/^\d$/.test(label) && !(await drawnCard.isDisabled())) await drawnCard.click();
-      else await actor.page.getByRole('button', { name: 'Pass' }).click();
+      const drawnCardIndex = handSize;
+      if (handSize > 1 && await isPlayableNumberCard(actor.page, drawnCardIndex)) {
+        await actor.page.locator('.hand-card').nth(drawnCardIndex).click();
+      } else {
+        // Do not turn a one-card hand into an uncalled UNO state during setup.
+        await actor.page.getByRole('button', { name: 'Pass' }).click();
+      }
       await waitForActorToFinishTurn(actor);
     }
   }
@@ -159,9 +184,8 @@ test('a different player can catch a missed UNO after the grace period and the t
     // Catching is not a turn action: the target draws two and the current
     // player's turn remains active even when a third participant catches.
     await expect(actor.page.locator('.hand-card')).toHaveCount(3);
-    await expect.poll(() => currentTurnIndex(players)).toBe(opportunity.nextPlayerIndex);
-    for (const player of players) await expect(player.page.locator('.uno-banner')).toHaveCount(0);
     await expect(currentPlayer.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    for (const player of players) await expect(player.page.locator('.uno-banner')).toHaveCount(0);
   } finally {
     await closePlayers(players);
   }
