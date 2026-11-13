@@ -10,7 +10,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 }
 
 async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<TestPlayer[]> {
-  const host: TestPlayer = { name: 'Host', context: null as unknown as BrowserContext, page: hostPage };
+  const host: TestPlayer = { name: 'Host', context: hostPage.context(), page: hostPage };
   await hostPage.goto('/');
   await hostPage.getByLabel('Your display name').fill(host.name);
   await hostPage.getByLabel('Maximum players').selectOption('2');
@@ -33,12 +33,25 @@ async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<Tes
 }
 
 async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
+  let matchCompleted = false;
   await expect.poll(async () => {
+    const completed = await Promise.all(
+      players.map(player => player.page.locator('.game-over-overlay').count()),
+    );
+    if (completed.some(count => count > 0)) {
+      matchCompleted = true;
+      return 0;
+    }
+
     for (let index = 0; index < players.length; index++) {
       if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
     }
     return -1;
   }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
+
+  if (matchCompleted) {
+    throw new Error('The match completed before the rematch test reached its nominated winner.');
+  }
 
   for (let index = 0; index < players.length; index++) {
     if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
