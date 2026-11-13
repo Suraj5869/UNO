@@ -133,3 +133,11 @@ Pull the latest `main`; run the .NET build and unit tests, web production build,
 
 - Added `room-permissions.spec.ts`: verifies disabled non-host controls and server-side rejection of non-host rule-change/start requests; verifies creator departure promotes the next participant; verifies a promoted host can start after a new player joins; rejects late joins after match start; and checks the API rejects capacity 11.
 - Added `npm run test:e2e:rooms`. This suite is committed but not yet verified by a local run or GitHub Actions.
+
+
+## Remaining E2E verification and coverage gaps
+
+- The new room-permissions suite also verifies host-only rule/start operations, creator departure and promotion, rejection of late joins, and invalid capacity.
+- The match/rematch suite now explicitly asserts that the first player to opt in is shown as HOST to both clients.
+- Remaining planned automated/manual coverage after these additions: hidden-hand privacy verification at the realtime/API boundary, draw-pile exhaustion and card-conservation invariants, concurrent action races, and responsive desktop/mobile viewports.
+- All recently added browser scenarios remain unverified until the user runs the full suite or GitHub Actions reports a successful E2E job.
