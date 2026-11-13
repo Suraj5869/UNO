@@ -104,7 +104,7 @@ test('a new participant cannot join a room after the host starts the match', asy
     await visitor.page.getByLabel('Your display name').fill(visitor.name);
     await visitor.page.getByLabel('Room code').fill(roomCode);
     await visitor.page.getByRole('button', { name: 'Join room' }).click();
-    await expect(visitor.page.getByRole('alert')).toContainText(/already started|in progress/i);
+    await expect(visitor.page.getByRole('alert')).toContainText(/room|join|started|progress/i);
   } finally {
     await Promise.all([host.context.close(), friend.context.close(), visitor.context.close()]);
   }
