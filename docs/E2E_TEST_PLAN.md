@@ -19,17 +19,17 @@ Verify the complete player journey through the real web client, REST API, Signal
 | Area | Scenarios | Status |
 |---|---|---|
 | Room creation | Valid room, capacities 2–10, invalid capacity, invalid display name | Engine-level tests exist; browser coverage pending |
-| Room joining | Valid code, unknown code, full room, game already started, invalid display name | Unknown-room browser smoke test exists; 10-player capacity flow added |
+| Room joining | Valid code, unknown code, full room, game already started, invalid display name | Unknown-room and full-room browser scenarios exist; joining after start scenario added; execution pending |
 | Multiplayer capacity | 2, 5 and 10 independent players; eleventh player rejected | 10-player browser scenario added; not yet executed |
-| Host permissions | Non-host cannot change rules or start; host departure promotes next host | Engine-level tests exist; browser coverage pending |
+| Host permissions | Non-host cannot change rules/start; creator departure promotes next host | Browser scenarios added for direct API authorization and host promotion; execution pending |
 | Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
 | Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Number/draw/pass and special-card browser scenarios added; special-card suite not yet executed |
 | Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Browser scenarios added for House Draw Two penalty/conditional stacking and Wild Draw Four accept/challenge; guaranteed deterministic stack/challenge variants pending |
 | UNO | Call window, missed UNO, catch penalty, expired window | Multi-client browser scenarios added for successful call, late-call rejection, catch-button gating, non-current-player catch, and +2 penalty; execution pending |
-| Timeout | Normal turn timeout, pending penalty timeout, client countdown synchronization | Engine behavior exists; browser coverage pending |
-| Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Basic lobby/game SignalR path exists; robust browser coverage pending |
+| Timeout | Normal timeout, pending Draw Two penalty timeout, client countdown synchronization | Browser scenarios added; execution pending |
+| Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Reconnect-after-timeout browser scenario added; execution pending |
 | Privacy/security | Token authorization, unauthorized host actions, own-hand-only game state, stale token after leave | Some server-side protections exist; API/SignalR security E2E pending |
-| Rematch | Opt-in, host promotion, returning players, revoked stale tokens | Engine/room behavior exists; browser coverage pending |
+| Rematch | Winner screen, independent opt-in, host promotion, returning players, revoked stale tokens | Full match completion and two-player Play Again browser scenario added; execution pending |
 | Responsive UI | Desktop and mobile layouts at 2, 4, 6 and 10 players | Manual verification pending |
 
 ## First browser acceptance scenario
@@ -51,6 +51,10 @@ From `src/web`:
 - `npm run test:e2e` — all browser E2E tests.
 - `npm run test:e2e:multiplayer` — the ten-player capacity and current-player departure scenario.
 - `npm run test:e2e:gameplay` — legal number-card play and draw/pass browser scenarios.
+- `npm run test:e2e:uno` — UNO call/catch grace-period and penalty scenarios.
+- `npm run test:e2e:rematch` — complete a match and exercise the two-player rematch opt-in flow.
+- `npm run test:e2e:lifecycle` — reconnect after a disconnected player's timeout and pending Draw Two timeout.
+- `npm run test:e2e:rooms` — non-host authorization, creator departure/host promotion, joining after start, and invalid capacity.
 
 Playwright retains traces, screenshots and video on failure. GitHub Actions uploads the HTML report and test results as a workflow artifact.
 
@@ -65,3 +69,19 @@ Playwright retains traces, screenshots and video on failure. GitHub Actions uplo
 7. Desktop/mobile viewport coverage and repeated-run stability.
 
 Do not call the E2E suite comprehensive or deployment-ready until the full matrix has been implemented and the complete suite has passed repeatedly in CI.
+
+
+## Completion, rematch, reconnect and timeout coverage
+
+- `match-rematch.spec.ts` progresses a real two-player shuffled match using legal number-card plays and draws. It nominates the first player to reach one card as the intended winner, calls UNO, prevents the other participant from playing a final card during fixture setup, and verifies the winner overlay on both clients.
+- The rematch browser flow verifies that the first player to opt in becomes the new lobby host, the non-opted participant remains on the completed screen, the second participant can independently join, and the new host can start a fresh seven-card game.
+- `realtime-lifecycle.spec.ts` takes the active player's browser context offline, verifies the server-enforced 30-second timeout advances the turn and draws one card, then restores connectivity and verifies the client rejoins and refreshes its player-specific state.
+- A second lifecycle scenario plays a legal House Rules Draw Two, leaves its recipient idle, and verifies timeout draws the full two-card penalty and skips that turn.
+- These scenarios are implemented but are not yet confirmed green locally or in GitHub Actions. The UNO fixture was also corrected to avoid playing a final card and accidentally completing the match before the intended UNO assertions.
+
+
+## Room permissions and lifecycle browser coverage
+
+- `room-permissions.spec.ts` verifies that non-host controls are disabled and that direct rule-change/start API requests using a non-host token are rejected.
+- It also verifies that a lobby creator leaving promotes the remaining participant, that the promoted host can start after a new participant joins, that joining an already-started match is rejected, and that the room API rejects an 11-player capacity.
+- The room-permissions suite is implemented but has not yet been run. The full Playwright suite must pass before this coverage is considered complete.

@@ -51,8 +51,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 
 ## Next task
 
-Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test two browsers joining one room, privacy of each hand, all action flows, and reconnect behavior. Fix compile/runtime issues found locally before adding automated API/SignalR integration tests. Persistence and production CORS origins remain required before deployment.
-
+Pull the latest `main`; run the .NET build and unit tests, web production build, and the complete Playwright suite serially. Resolve actual failures without relaxing gameplay assertions. After the new match/rematch, reconnect, and timeout scenarios are verified, continue with the remaining coverage gaps: host permissions and departure, direct API authorization and hidden-hand privacy, draw-pile exhaustion/card conservation, concurrent actions, and desktop/mobile viewport checks. Persistence and production CORS origins remain required before deployment.
 
 ## Latest UI/realtime improvement
 
@@ -119,3 +118,26 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Successful-call coverage verifies the caller can call within the three-second grace period and all clients receive the UNO celebration.
 - Missed-call coverage verifies the catch action is hidden during the grace period, a different non-current player can catch afterward, the target draws two cards, and the active turn does not change.
 - Added npm run test:e2e:uno. The suite is committed but not yet executed; do not mark it passing until the local Playwright run confirms it.
+
+
+## Remaining browser E2E implementation
+
+- Fixed the UNO call/catch fixture so it never plays a player's final card while searching for the two-to-one-card transition. It also validates that a drawn number card is actually legal before playing it, and fails explicitly if the match completes unexpectedly.
+- Added a real-match completion and rematch browser scenario. It verifies both clients see the winner overlay, the first opt-in creates a one-player rematch lobby, non-opted clients stay on the completed screen, the second opt-in joins the same lobby, and the new host can start the rematch.
+- Added reconnect and timeout browser scenarios: a disconnected active player is timed out by the server and receives the refreshed state after reconnect; a House Rules Draw Two recipient who times out draws the full penalty and loses the turn.
+- Added focused scripts: `npm run test:e2e:rematch` and `npm run test:e2e:lifecycle`.
+- None of these new scenarios should be considered passing until the local Playwright suite or GitHub Actions provides a green result. Run the complete suite serially from `src/web` with `npx playwright test --workers=1 --reporter=list`.
+
+
+## Room authorization and lifecycle E2E additions
+
+- Added `room-permissions.spec.ts`: verifies disabled non-host controls and server-side rejection of non-host rule-change/start requests; verifies creator departure promotes the next participant; verifies a promoted host can start after a new player joins; rejects late joins after match start; and checks the API rejects capacity 11.
+- Added `npm run test:e2e:rooms`. This suite is committed but not yet verified by a local run or GitHub Actions.
+
+
+## Remaining E2E verification and coverage gaps
+
+- The new room-permissions suite also verifies host-only rule/start operations, creator departure and promotion, rejection of late joins, and invalid capacity.
+- The match/rematch suite now explicitly asserts that the first player to opt in is shown as HOST to both clients.
+- Remaining planned automated/manual coverage after these additions: hidden-hand privacy verification at the realtime/API boundary, draw-pile exhaustion and card-conservation invariants, concurrent action races, and responsive desktop/mobile viewports.
+- All recently added browser scenarios remain unverified until the user runs the full suite or GitHub Actions reports a successful E2E job.

@@ -37,8 +37,18 @@ The initial React + TypeScript + Vite web client is now in `src/web/`. It suppor
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any real failures without weakening assertions. The new scenarios cover successful UNO calls from two cards, synchronized celebration across all three clients, catch-button gating during the grace period, late-call rejection, catching from a non-current player, and the +2 penalty. Then add full match completion/Play Again browser scenarios, followed by reconnect and timeout browser scenarios. Verify locally with dotnet build src/backend/Uno.sln, dotnet test src/backend/Uno.sln, and cd src/web && npm run build. Do not create a feature branch; commit directly to main.
+Pull the latest `main` and run the backend build/tests, web production build, and all Playwright suites serially:
 
+```powershell
+dotnet build src/backend/Uno.sln
+dotnet test src/backend/Uno.sln
+cd src/web
+npm install
+npm run build
+npx playwright test --workers=1 --reporter=list
+```
+
+The latest browser additions cover UNO call/catch, full match completion and rematch opt-in, reconnect after an active-player timeout, House Rules Draw Two penalty timeout, non-host authorization, creator departure/host promotion, late-join rejection, and invalid room capacity. These additions are committed but have not yet been verified locally or in GitHub Actions. Fix observed failures without weakening assertions. Remaining planned coverage includes hidden-hand privacy verification, draw-pile exhaustion/card conservation, concurrent actions, and desktop/mobile viewport checks. Continue committing directly to `main`; do not create a feature branch.
 ## Constraints
 - Inspect existing code before editing.
 - Keep game rules server-authoritative.
@@ -72,3 +82,16 @@ Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any re
 - Notices auto-dismiss after 3.6 seconds; errors after 6.5 seconds.
 - Desktop uses compact opponent seats; smaller screens use a horizontally scrollable opponent strip and hand, retaining card tap size. Test 10-player layouts at desktop/mobile viewports.
 - Responsive/toast changes are committed; CI and live browser/device verification remain pending.
+
+
+## Latest E2E work (2026-11-13)
+
+- UNO call/catch test setup now preserves the live match while searching for a player who can move from two cards to one. It never plays a final card during setup and only plays a drawn number card after checking its legality.
+- Added `match-rematch.spec.ts` for natural match completion, winner overlay synchronization, independent Play Again opt-in, lobby host promotion, and starting a fresh match.
+- Added `realtime-lifecycle.spec.ts` for disconnected-player timeout/reconnect state refresh and automatic resolution of a timed-out House Rules Draw Two penalty.
+- Run focused suites with `npm run test:e2e:uno`, `npm run test:e2e:rematch`, and `npm run test:e2e:lifecycle`; run all browser tests with `npx playwright test --workers=1 --reporter=list`.
+- These tests have been committed but have not yet been run against the local environment or confirmed green in CI. Keep this status explicit.
+- Continue working directly on `main`; do not create a feature branch.
+
+
+- Added `room-permissions.spec.ts` and `npm run test:e2e:rooms` for host-only rule/start authorization, creator departure and host promotion, post-start join rejection, and invalid room capacity. Run this suite with the other focused tests before treating the E2E rollout as green.
