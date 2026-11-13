@@ -92,3 +92,6 @@ The latest browser additions cover UNO call/catch, match completion and rematch 
 - Run focused suites with `npm run test:e2e:uno`, `npm run test:e2e:rematch`, and `npm run test:e2e:lifecycle`; run all browser tests with `npx playwright test --workers=1 --reporter=list`.
 - These tests have been committed but have not yet been run against the local environment or confirmed green in CI. Keep this status explicit.
 - Continue working directly on `main`; do not create a feature branch.
+
+
+- Added `room-permissions.spec.ts` and `npm run test:e2e:rooms` for host-only rule/start authorization, creator departure and host promotion, post-start join rejection, and invalid room capacity. Run this suite with the other focused tests before treating the E2E rollout as green.
