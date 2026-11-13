@@ -127,3 +127,9 @@ Pull the latest `main`; run the .NET build and unit tests, web production build,
 - Added reconnect and timeout browser scenarios: a disconnected active player is timed out by the server and receives the refreshed state after reconnect; a House Rules Draw Two recipient who times out draws the full penalty and loses the turn.
 - Added focused scripts: `npm run test:e2e:rematch` and `npm run test:e2e:lifecycle`.
 - None of these new scenarios should be considered passing until the local Playwright suite or GitHub Actions provides a green result. Run the complete suite serially from `src/web` with `npx playwright test --workers=1 --reporter=list`.
+
+
+## Room authorization and lifecycle E2E additions
+
+- Added `room-permissions.spec.ts`: verifies disabled non-host controls and server-side rejection of non-host rule-change/start requests; verifies creator departure promotes the next participant; verifies a promoted host can start after a new player joins; rejects late joins after match start; and checks the API rejects capacity 11.
+- Added `npm run test:e2e:rooms`. This suite is committed but not yet verified by a local run or GitHub Actions.
