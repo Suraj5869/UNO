@@ -14,7 +14,8 @@
     "test:e2e:special": "playwright test e2e/special-card-actions.spec.ts",
     "test:e2e:uno": "playwright test e2e/uno-call-actions.spec.ts",
     "test:e2e:rematch": "playwright test e2e/match-rematch.spec.ts",
-    "test:e2e:lifecycle": "playwright test e2e/realtime-lifecycle.spec.ts"
+    "test:e2e:lifecycle": "playwright test e2e/realtime-lifecycle.spec.ts",
+    "test:e2e:rooms": "playwright test e2e/room-permissions.spec.ts"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
