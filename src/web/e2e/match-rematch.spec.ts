@@ -140,6 +140,7 @@ test('the winner sees the match result and both players can opt into a fresh rem
     await winner.page.getByRole('button', { name: 'Play Again' }).click();
     await expect(winner.page.getByRole('heading', { name: /Room/ })).toBeVisible();
     await expect(winner.page.getByRole('heading', { name: 'Players 1/2' })).toBeVisible();
+    await expect(winner.page.getByText('HOST', { exact: true })).toBeVisible();
     await expect(winner.page.getByRole('button', { name: /Start game/ })).toBeDisabled();
 
     // The non-opted player must remain on the completed-match screen until
@@ -149,6 +150,7 @@ test('the winner sees the match result and both players can opt into a fresh rem
 
     await expect(winner.page.getByRole('heading', { name: 'Players 2/2' })).toBeVisible();
     await expect(other.page.getByRole('heading', { name: 'Players 2/2' })).toBeVisible();
+    await expect(other.page.getByText('HOST', { exact: true })).toBeVisible();
     await winner.page.getByRole('button', { name: /Start game/ }).click();
 
     for (const player of players) {
