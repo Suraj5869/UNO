@@ -37,8 +37,18 @@ The initial React + TypeScript + Vite web client is now in `src/web/`. It suppor
 Work directly on `main`. Do not create feature branches or pull requests unless the user changes this instruction.
 
 ## Exact next task
-Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any real failures without weakening assertions. The new scenarios cover successful UNO calls from two cards, synchronized celebration across all three clients, catch-button gating during the grace period, late-call rejection, catching from a non-current player, and the +2 penalty. Then add full match completion/Play Again browser scenarios, followed by reconnect and timeout browser scenarios. Verify locally with dotnet build src/backend/Uno.sln, dotnet test src/backend/Uno.sln, and cd src/web && npm run build. Do not create a feature branch; commit directly to main.
+Pull the latest `main` and run the backend build/tests, web production build, and all Playwright suites serially:
 
+```powershell
+dotnet build src/backend/Uno.sln
+dotnet test src/backend/Uno.sln
+cd src/web
+npm install
+npm run build
+npx playwright test --workers=1 --reporter=list
+```
+
+The latest browser additions cover UNO call/catch, match completion and rematch opt-in, reconnect after an active-player timeout, and House Rules Draw Two penalty timeout. These additions are committed but have not yet been verified locally or in GitHub Actions. Fix observed failures without weakening assertions. Remaining planned coverage includes host permissions/departure, direct API authorization and hidden-hand privacy, draw-pile exhaustion/card conservation, concurrency, and desktop/mobile viewport checks. Continue committing directly to `main`; do not create a feature branch.
 ## Constraints
 - Inspect existing code before editing.
 - Keep game rules server-authoritative.
