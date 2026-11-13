@@ -51,8 +51,7 @@ Phase 4 — Real-time multiplayer backend foundation.
 
 ## Next task
 
-Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Uno.sln`, then `cd src/web && npm install && npm run build && npm run dev`. Test two browsers joining one room, privacy of each hand, all action flows, and reconnect behavior. Fix compile/runtime issues found locally before adding automated API/SignalR integration tests. Persistence and production CORS origins remain required before deployment.
-
+Pull the latest `main`; run the .NET build and unit tests, web production build, and the complete Playwright suite serially. Resolve actual failures without relaxing gameplay assertions. After the new match/rematch, reconnect, and timeout scenarios are verified, continue with the remaining coverage gaps: host permissions and departure, direct API authorization and hidden-hand privacy, draw-pile exhaustion/card conservation, concurrent actions, and desktop/mobile viewport checks. Persistence and production CORS origins remain required before deployment.
 
 ## Latest UI/realtime improvement
 
