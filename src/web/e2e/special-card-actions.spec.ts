@@ -95,6 +95,33 @@ async function cardMatches(card: ReturnType<Page['locator']>, matcher: RegExp): 
   return matcher.test(label);
 }
 
+
+async function isPlayableTargetCard(
+  page: Page,
+  card: ReturnType<Page['locator']>,
+  matcher: RegExp,
+): Promise<boolean> {
+  if (!(await cardMatches(card, matcher))) return false;
+
+  const label = (await card.locator('b').textContent())?.trim() ?? '';
+
+  // Wild cards can be played regardless of the active color.
+  if (label === 'WILD' || label === '+4') return true;
+
+  const active = await activeColor(page);
+  const topLabel = (await page.locator('.top-card b').textContent())?.trim();
+
+  const cardColor = await card.evaluate(element =>
+    ['red', 'yellow', 'green', 'blue'].find(color =>
+      element.classList.contains(color),
+    ) ?? 'wild',
+  );
+
+  // A card is playable when its color or symbol matches the discard.
+  return cardColor === active || label === topLabel;
+}
+
+
 async function chooseWildColor(page: Page, color: 'Red' | 'Yellow' | 'Green' | 'Blue') {
   await expect(page.locator('.color-picker')).toBeVisible();
   await page.locator('.color-picker').getByRole('button', { name: color, exact: true }).click();
@@ -137,10 +164,21 @@ async function playTargetCard(
   for (let attempt = 0; attempt < 160; attempt++) {
     const actorIndex = await currentTurnIndex(players);
     const actor = players[actorIndex];
-    const playable = actor.page.locator('.hand-card:not([disabled])');
-    const target = playable.filter({ has: actor.page.locator('b', { hasText: matcher }) }).first();
+    
+const playable = actor.page.locator('.hand-card:not([disabled])');
+let target: ReturnType<Page['locator']> | null = null;
 
-    if (await target.count()) {
+for (let i = 0; i < await playable.count(); i++) {
+  const candidate = playable.nth(i);
+
+  if (await isPlayableTargetCard(actor.page, candidate, matcher)) {
+    target = candidate;
+    break;
+  }
+}
+
+
+if (target) {
       const handSizeBeforePlay = await actor.page.locator('.hand-card').count();
       // Avoid ending the match while a test is trying to exercise a special card.
       if (handSizeBeforePlay === 1) {
@@ -152,13 +190,22 @@ async function playTargetCard(
           ? await hasMatchingColorInHand(actor.page, activeColorBeforePlay)
           : false;
         await target.click();
-        if (matcher === specialLabels.wild || matcher === specialLabels.wildDrawFour) {
-          await chooseWildColor(actor.page, color);
-        }
-        if (handSizeBeforePlay === 2) {
-          await actor.page.getByRole('button', { name: 'UNO!' }).click();
-        }
-        await waitForTurnChange(players, actorIndex);
+
+if (matcher === specialLabels.wild || matcher === specialLabels.wildDrawFour) {
+  await chooseWildColor(actor.page, color);
+}
+
+if (handSizeBeforePlay === 2) {
+  await actor.page.getByRole('button', { name: 'UNO!' }).click();
+}
+
+// Verify that the server accepted the play before checking turn progression.
+await expect(actor.page.locator('.hand-card')).toHaveCount(
+  handSizeBeforePlay - 1,
+  { timeout: 15_000 },
+);
+
+await waitForTurnChange(players, actorIndex);
         return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
       }
     } else {
