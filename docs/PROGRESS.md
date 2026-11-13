@@ -119,3 +119,12 @@ Pull `main`; run `dotnet build src/backend/Uno.sln`, `dotnet test src/backend/Un
 - Successful-call coverage verifies the caller can call within the three-second grace period and all clients receive the UNO celebration.
 - Missed-call coverage verifies the catch action is hidden during the grace period, a different non-current player can catch afterward, the target draws two cards, and the active turn does not change.
 - Added npm run test:e2e:uno. The suite is committed but not yet executed; do not mark it passing until the local Playwright run confirms it.
+
+
+## Remaining browser E2E implementation
+
+- Fixed the UNO call/catch fixture so it never plays a player's final card while searching for the two-to-one-card transition. It also validates that a drawn number card is actually legal before playing it, and fails explicitly if the match completes unexpectedly.
+- Added a real-match completion and rematch browser scenario. It verifies both clients see the winner overlay, the first opt-in creates a one-player rematch lobby, non-opted clients stay on the completed screen, the second opt-in joins the same lobby, and the new host can start the rematch.
+- Added reconnect and timeout browser scenarios: a disconnected active player is timed out by the server and receives the refreshed state after reconnect; a House Rules Draw Two recipient who times out draws the full penalty and loses the turn.
+- Added focused scripts: `npm run test:e2e:rematch` and `npm run test:e2e:lifecycle`.
+- None of these new scenarios should be considered passing until the local Playwright suite or GitHub Actions provides a green result. Run the complete suite serially from `src/web` with `npx playwright test --workers=1 --reporter=list`.
