@@ -14,7 +14,7 @@ async function startTwoPlayerGame(
   hostPage: Page,
   ruleSet: 'official' | 'house' = 'official',
 ): Promise<TestPlayer[]> {
-  const host: TestPlayer = { name: 'Host', context: null as unknown as BrowserContext, page: hostPage };
+  const host: TestPlayer = { name: 'Host', context: hostPage.context(), page: hostPage };
   await hostPage.goto('/');
   await hostPage.getByLabel('Your display name').fill(host.name);
   await hostPage.getByLabel('Maximum players').selectOption('2');
