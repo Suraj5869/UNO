@@ -72,3 +72,13 @@ Run npm run test:e2e:uno -- --workers=1 --reporter=list from src/web; fix any re
 - Notices auto-dismiss after 3.6 seconds; errors after 6.5 seconds.
 - Desktop uses compact opponent seats; smaller screens use a horizontally scrollable opponent strip and hand, retaining card tap size. Test 10-player layouts at desktop/mobile viewports.
 - Responsive/toast changes are committed; CI and live browser/device verification remain pending.
+
+
+## Latest E2E work (2026-11-13)
+
+- UNO call/catch test setup now preserves the live match while searching for a player who can move from two cards to one. It never plays a final card during setup and only plays a drawn number card after checking its legality.
+- Added `match-rematch.spec.ts` for natural match completion, winner overlay synchronization, independent Play Again opt-in, lobby host promotion, and starting a fresh match.
+- Added `realtime-lifecycle.spec.ts` for disconnected-player timeout/reconnect state refresh and automatic resolution of a timed-out House Rules Draw Two penalty.
+- Run focused suites with `npm run test:e2e:uno`, `npm run test:e2e:rematch`, and `npm run test:e2e:lifecycle`; run all browser tests with `npx playwright test --workers=1 --reporter=list`.
+- These tests have been committed but have not yet been run against the local environment or confirmed green in CI. Keep this status explicit.
+- Continue working directly on `main`; do not create a feature branch.
