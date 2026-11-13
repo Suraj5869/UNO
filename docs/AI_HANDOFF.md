@@ -48,7 +48,7 @@ npm run build
 npx playwright test --workers=1 --reporter=list
 ```
 
-The latest browser additions cover UNO call/catch, match completion and rematch opt-in, reconnect after an active-player timeout, and House Rules Draw Two penalty timeout. These additions are committed but have not yet been verified locally or in GitHub Actions. Fix observed failures without weakening assertions. Remaining planned coverage includes host permissions/departure, direct API authorization and hidden-hand privacy, draw-pile exhaustion/card conservation, concurrency, and desktop/mobile viewport checks. Continue committing directly to `main`; do not create a feature branch.
+The latest browser additions cover UNO call/catch, full match completion and rematch opt-in, reconnect after an active-player timeout, House Rules Draw Two penalty timeout, non-host authorization, creator departure/host promotion, late-join rejection, and invalid room capacity. These additions are committed but have not yet been verified locally or in GitHub Actions. Fix observed failures without weakening assertions. Remaining planned coverage includes hidden-hand privacy verification, draw-pile exhaustion/card conservation, concurrent actions, and desktop/mobile viewport checks. Continue committing directly to `main`; do not create a feature branch.
 ## Constraints
 - Inspect existing code before editing.
 - Keep game rules server-authoritative.
