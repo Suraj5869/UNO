@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import './styles.css';
+import AuthGate, { type Profile } from './AuthGate';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
 const HUB = import.meta.env.VITE_SIGNALR_URL || API + '/hubs/uno-room';
@@ -26,7 +27,11 @@ async function messageFor(response: Response) {
 }
 
 export default function App() {
-  const [name, setName] = useState('');
+  return <AuthGate>{(player, logout) => <GameApp key={player?.userId ?? 'guest'} player={player} logout={logout}/>}</AuthGate>;
+}
+
+function GameApp({ player, logout }: { player: Profile | null; logout: () => Promise<void> }) {
+  const [name, setName] = useState(player?.displayName ?? '');
   const [entryMode, setEntryMode] = useState<'home' | 'friends'>('home');
   const [quickMatch, setQuickMatch] = useState(() => sessionStorage.getItem('uno-quick-match') === 'true');
   const [codeInput, setCodeInput] = useState('');
@@ -307,11 +312,11 @@ export default function App() {
   })() : [];
 
   return <div className="app-shell">
-    <header className="topbar"><a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark">U</span><span>UNO<span className="brand-dot">.</span></span></a><div className="topbar-right"><span className={'connection-pill ' + (hub?.state === 'Connected' ? 'online' : '')}><i />{hub?.state === 'Connected' ? 'Live connection' : access ? 'Connecting' : 'Ready to play'}</span>{access && <button className="button button-quiet button-small" onClick={() => void leave()}>Leave room</button>}</div></header>
+    <header className="topbar"><a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark">U</span><span>UNO<span className="brand-dot">.</span></span></a><div className="topbar-right"><span className={'connection-pill ' + (hub?.state === 'Connected' ? 'online' : '')}><i />{hub?.state === 'Connected' ? 'Live connection' : access ? 'Connecting' : 'Ready to play'}</span>{!access && <button className="button button-quiet button-small" onClick={() => void logout().catch(() => undefined)}>{player ? 'Sign out' : 'Exit guest'}</button>}{access && <button className="button button-quiet button-small" onClick={() => void leave()}>Leave room</button>}</div></header>
     <main className="main-content">
       {!access || !room ? <section className="landing">
         <div className="hero-copy"><span className="eyebrow"><span /> CLASSIC UNO · EVERYONE CAN PLAY</span><h1>One deck.<br /><span>Endless</span> fun.</h1><p>Play online, challenge friends, and enjoy Classic UNO together.</p><div className="hero-stats"><div><strong>2–10</strong><span>players per room</span></div><div><strong>2 modes</strong><span>Official or House Rules</span></div><div><strong>Live</strong><span>multiplayer updates</span></div></div><div className="card-art" aria-hidden="true"><div className="art-card art-red"><b>7</b><span>UNO</span></div><div className="art-card art-blue"><b>↻</b><span>UNO</span></div><div className="art-card art-yellow"><b>+2</b><span>UNO</span></div><div className="art-card art-green"><b>5</b><span>UNO</span></div></div></div>
-        <div className="entry-card"><div className="entry-heading"><span className="mini-label">LET'S PLAY</span><h2>Game on.</h2><p>Choose how you want to play.</p></div><label className="field-label" htmlFor="display-name">Your display name</label><input id="display-name" value={name} onChange={e => setName(e.target.value)} maxLength={24} placeholder="e.g. CardShark" />
+        <div className="entry-card"><div className="entry-heading"><span className="mini-label">LET'S PLAY</span><h2>Game on.</h2><p>Choose how you want to play.</p></div>{player ? <div className="account-summary"><div className="account-avatar">{player.displayName.slice(0,1).toUpperCase()}</div><div><strong>{player.displayName}</strong><small>@{player.username} · Level {player.level}</small><small>{player.totalXp} XP · {player.wins} wins · {player.matchesPlayed} matches</small></div></div> : <><label className="field-label" htmlFor="display-name">Your display name</label><input id="display-name" value={name} onChange={e => setName(e.target.value)} maxLength={24} placeholder="e.g. CardShark" /></>}
           {entryMode === 'home' ? <div className="mode-menu">
             <button className="mode-tile mode-match" disabled={busy} onClick={() => void findMatch()}><strong>Play Match</strong><small>Find a random online opponent</small></button>
             <button className="mode-tile mode-friends" disabled={busy} onClick={() => setEntryMode('friends')}><strong>Play with Friends</strong><small>Create or join a private room</small></button>
