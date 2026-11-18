@@ -5,8 +5,8 @@ export interface Profile { userId: string; publicPlayerId: string; email: string
 interface Session { accessToken: string; refreshToken: string; expiresIn: number; player: Profile; expiresAt: number }
 const KEY = 'uno-account-session';
 function read(): Session | null { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } }
-async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
-  const response = await fetch(API + '/api/auth/' + path, { method: body === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
+  const response = await fetch(API + '/api/auth/' + path, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new Error(data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
@@ -22,7 +22,12 @@ function rotate(s: Session) {
   if (!rotating) rotating = request<Session>('refresh', { refreshToken: s.refreshToken }).then(save).finally(() => { rotating = null; });
   return rotating;
 }
-export default function AuthGate({ children }: { children: (player: Profile | null, logout: () => Promise<void>) => ReactNode }) {
+export async function accountRequest<T>(path: string, body?: unknown, method?: string): Promise<T> {
+  let current = read(); if (!current) throw new Error('Please sign in again.');
+  if (current.expiresAt <= Date.now() + 60000) current = await rotate(current);
+  return request<T>(path, body, current.accessToken, method);
+}
+export default function AuthGate({ children }: { children: (player: Profile | null, logout: () => Promise<void>, updateProfile: (profile: Profile) => void) => ReactNode }) {
   const [session, setSession] = useState<Session | null>(read);
   const [guest, setGuest] = useState(() => sessionStorage.getItem('uno-guest') === 'true');
   const [loading, setLoading] = useState(() => !!read());
@@ -77,7 +82,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     finally { setBusy(false); }
   };
   if (loading) return <div className="auth-shell auth-loading" role="status"><div className="auth-spinner"/>Restoring your session…</div>;
-  if (session || guest) return <>{children(session?.player ?? null, logout)}</>;
+  if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; sessionStorage.setItem(KEY, JSON.stringify(next)); setSession(next); } })}</>;
   return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
     <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
     <section className="auth-panel"><h2 id="auth-heading">{register ? 'Create Account' : 'Sign In'}</h2>
