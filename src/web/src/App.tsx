@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import './styles.css';
@@ -28,10 +29,10 @@ async function messageFor(response: Response) {
 }
 
 export default function App() {
-  return <AuthGate>{(player, logout) => <GameApp key={player?.userId ?? 'guest'} player={player} logout={logout}/>}</AuthGate>;
+  return <AuthGate>{(player, logout, updateProfile) => <GameApp key={player?.userId ?? 'guest'} player={player} logout={logout} updateProfile={updateProfile}/>}</AuthGate>;
 }
 
-function GameApp({ player, logout }: { player: Profile | null; logout: () => Promise<void> }) {
+function GameApp({ player, logout, updateProfile }: { player: Profile | null; logout: () => Promise<void>; updateProfile: (p: Profile) => void }) {
   const [name, setName] = useState(player?.displayName ?? '');
   const [entryMode, setEntryMode] = useState<'home' | 'friends' | 'create'>('home');
   const [quickMatch, setQuickMatch] = useState(() => sessionStorage.getItem('uno-quick-match') === 'true');
@@ -312,7 +313,7 @@ function GameApp({ player, logout }: { player: Profile | null; logout: () => Pro
   })() : [];
 
   return <div className={"app-shell" + (!access || !room ? " dashboard-shell" : room.status === 0 ? " lobby-shell" : " gameplay-shell")}>
-    <header className="topbar"><div className="topbar-left"><a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark">U</span><span>UNO<span className="brand-dot">.</span></span></a></div><div className="topbar-right"><span className={'connection-pill ' + (hub?.state === 'Connected' ? 'online' : '')}><i />{hub?.state === 'Connected' ? 'Live connection' : access ? 'Connecting' : 'Ready to play'}</span>{!access && !player && <button className="button button-quiet button-small" onClick={() => void logout().catch(() => undefined)}>Exit guest</button>}{access && <button className="button button-quiet button-small" onClick={() => void leave()}>Leave room</button>}{player && <ProfileMenu player={player} logout={logout} inRoom={!!access}/>}</div></header>
+    <header className="topbar"><div className="topbar-left"><a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark">U</span><span>UNO<span className="brand-dot">.</span></span></a></div><div className="topbar-right"><span className={'connection-pill ' + (hub?.state === 'Connected' ? 'online' : '')}><i />{hub?.state === 'Connected' ? 'Live connection' : access ? 'Connecting' : 'Ready to play'}</span>{!access && !player && <button className="button button-quiet button-small" onClick={() => void logout().catch(() => undefined)}>Exit guest</button>}{access && <button className="button button-quiet button-small" onClick={() => void leave()}>Leave room</button>}{player && <ProfileMenu player={player} logout={logout} inRoom={!!access} onUpdate={p => { updateProfile(p); setName(p.displayName); }}/>}</div></header>
     <main className="main-content">
       {!access || !room ? <section className="batch2-screen">
         {entryMode === 'home' ? <><div className="dashboard-hero"><div><span className="dashboard-kicker">THE CLASSIC CARD GAME</span><h1>Ready to <em>play?</em></h1><p>{player ? 'Welcome back, ' + player.displayName + '!' : 'Welcome, player!'} Your next victory awaits.</p></div><img src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></div><div className="dashboard-content">{!player && <div className="dashboard-guest"><label htmlFor="display-name">Your display name</label><input id="display-name" value={name} onChange={e => setName(e.target.value)} maxLength={24} placeholder="e.g. CardShark"/></div>}<h2>Choose how to play</h2><div className="dashboard-modes">
@@ -338,7 +339,7 @@ function GameApp({ player, logout }: { player: Profile | null; logout: () => Pro
               </div>
             </div><div className="game-footnote">Moves are validated by the server. Opponents cannot see your hand.</div>
           </div>
-        </div> : <div className="panel loading-panel"><div className="spinner" /><h2>Getting the table ready</h2><p>Waiting for the live game state…</p><button className="button button-secondary" onClick={() => void refresh()}>Refresh room</button></div>}
+        </div> : <div className="panel loading-panel"><LoadingScreen title="Getting the table ready" compact/><button className="button button-secondary" onClick={() => void refresh()}>Refresh room</button></div>}
       </section>}
       {access && game && game.gameStatus !== 1 && unoAnnouncement && <div className="uno-celebration-layer" key={unoAnimationKey} role="status" aria-live="polite"><div className="uno-celebration-card"><span className="uno-burst" aria-hidden="true">✦</span><span className="uno-word">UNO!</span><strong>{unoAnnouncement}</strong><span className="uno-subtitle">ONE CARD LEFT. MAKE IT COUNT.</span></div></div>}
       {access && game && game.gameStatus === 1 && <div className="game-over-overlay" role="dialog" aria-modal="true" aria-labelledby="game-over-title"><div className="game-over-card batch4-victory"><div className="victory-confetti" aria-hidden="true">{Array.from({length:24},(_,i)=><i key={i} style={{left:(i*37%100)+"%",top:(i*23%100)+"%", background:["#ffca27","#ff626b","#24bd98","#7d91ff"][i%4],animationDelay:(i%7)*.13+"s",transform:"rotate("+(i*31)+"deg)"}}/>)}</div><div className="winner-medallion" aria-hidden="true">🏆</div><span className="mini-label">{winner?.playerId === game.viewerPlayerId ? "VICTORY!" : "MATCH COMPLETE"}</span><h2 id="game-over-title">{winner ? winner.displayName + " wins!" : "Game over!"}</h2><p>{winner ? "A perfect finish. The table belongs to " + winner.displayName + "." : "This match has ended. Ready for another round?"}</p><div className="winner-stats"><span><strong>{game.players.length}</strong><small>PLAYERS</small></span><span><strong>{game.discardPileCount}</strong><small>CARDS PLAYED</small></span><span><strong>{game.ruleSet === 1 ? "HOUSE" : "OFFICIAL"}</strong><small>RULE SET</small></span></div><div className="winner-actions"><button className="button button-primary winner-exit" disabled={busy} onClick={() => void playAgain()}>{busy ? 'Preparing lobby…' : 'Play Again'} <span>↻</span></button><button className="button button-secondary winner-home" disabled={busy} onClick={() => void leave()}>Back to Home</button></div><p className="result-footnote">Choose your next move. Players who opt into the rematch will meet in a fresh lobby.</p></div></div>}
