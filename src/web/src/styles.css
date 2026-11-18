@@ -533,3 +533,17 @@ body:has(.game-layout) .batch4-board .top-card,body:has(.game-layout) .batch4-bo
 body:has(.game-layout) .batch4-board .hand-card{transform:perspective(700px) translateY(calc(var(--fan,0) * var(--fan,0) * .55px)) rotateZ(calc(var(--fan,0) * 2.5deg)) rotateX(15deg);transform-origin:center 85%;box-shadow:0 2px 0 #e2dfd2,0 4px 0 #999c94,0 8px 10px #0008,inset 0 0 0 2px #ffffff35}
 body:has(.game-layout) .batch4-board .hand-card:not(:disabled):hover,body:has(.game-layout) .batch4-board .hand-card:focus-visible{transform:perspective(700px) translateY(-12px) rotateZ(calc(var(--fan,0) * 1.5deg)) rotateX(5deg);z-index:8}
 @media(prefers-reduced-motion:reduce){.batch4-board .hand-card{transition:none}}
+
+/* Deck depth must not obscure the readable count. */
+body:has(.game-layout) .batch4-board .draw-pile-button .card-back{margin-bottom:26px}
+.batch4-board .draw-pile-button>strong,.batch4-board .draw-pile-button>small{position:relative;z-index:2;line-height:1.2}
+.batch4-board .back-cards span{position:relative;overflow:hidden;isolation:isolate}
+.batch4-board .back-cards span:after{inset:16% 4%;font-size:clamp(3px,.3vw,5px);line-height:1;letter-spacing:-.35px;white-space:nowrap;transform:rotate(-18deg);overflow:hidden}
+.batch4-board .active-color-chip{--active:#b8bfd8;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:5px 8px;border:1px solid var(--active);border-radius:999px;background:#10182de8;color:#fff;font-size:11px;white-space:nowrap}
+.batch4-board .active-color-chip i{width:10px;height:10px;border-radius:50%;background:var(--active);box-shadow:0 0 7px var(--active);flex:none}
+.batch4-board .active-color-red,.batch4-board .selected-wild-color-red{--active:#ff515c}
+.batch4-board .active-color-blue,.batch4-board .selected-wild-color-blue{--active:#62a5ff}
+.batch4-board .active-color-green,.batch4-board .selected-wild-color-green{--active:#4be183}
+.batch4-board .active-color-yellow,.batch4-board .selected-wild-color-yellow{--active:#ffdc42}
+body:has(.game-layout) .batch4-board .top-card[class*="selected-wild-color-"]{outline:3px solid var(--active,#fff);outline-offset:3px;filter:drop-shadow(0 0 9px var(--active,#fff))}
+@media(max-width:600px){.batch4-board .active-color-chip{font-size:9px;padding:4px;white-space:normal}.batch4-board .draw-pile-button .card-back{margin-bottom:24px}}
