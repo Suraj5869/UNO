@@ -1,3 +1,4 @@
+using Uno.Api.Controllers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -58,7 +59,7 @@ public static class UnoApi
         if (!string.IsNullOrWhiteSpace(connectionString))
             builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
 
-        builder.Services.AddSingleton<PasswordHasher<Guid>>();
+        builder.Services.AddSingleton<PasswordHasher<AccountIdentity>>();
         var jwtKey = builder.Configuration["Jwt:SigningKey"];
         var authentication = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
         if (!string.IsNullOrWhiteSpace(jwtKey))
