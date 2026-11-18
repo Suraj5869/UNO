@@ -78,18 +78,18 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
   };
   if (loading) return <div className="auth-shell auth-loading" role="status"><div className="auth-spinner"/>Restoring your session…</div>;
   if (session || guest) return <>{children(session?.player ?? null, logout)}</>;
-  return <main className="auth-shell"><div className="auth-layout">
-    <section className="auth-intro"><span className="auth-kicker">CLASSIC UNO · PLAY TOGETHER</span><h1>One deck.<br/><em>Endless fun.</em></h1><p>Your friends, your cards, your next victory.</p><div className="card-art" aria-hidden="true"><div className="art-card art-red"><b>7</b><span>UNO</span></div><div className="art-card art-blue"><b>↻</b><span>UNO</span></div><div className="art-card art-yellow"><b>+2</b><span>UNO</span></div><div className="art-card art-green"><b>5</b><span>UNO</span></div></div></section>
-    <section className="auth-panel"><span className="auth-kicker">YOUR NEXT MATCH AWAITS</span><h2>{register ? 'Join the fun!' : 'Welcome back!'}</h2><p>{register ? 'Create your player account.' : 'Sign in to keep your progress.'}</p>
+  return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
+    <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
+    <section className="auth-panel"><h2 id="auth-heading">{register ? 'Create Account' : 'Sign In'}</h2>
     <form onSubmit={submit} className="auth-form">
-      <label>{register ? 'Email' : 'Email or username'}<input required type={register ? 'email' : 'text'} value={identifier} onChange={e => setIdentifier(e.target.value)} maxLength={254} autoComplete="username"/></label>
+      <label>{register ? 'Email' : 'Email or username'}<input required type={register ? 'email' : 'text'} value={identifier} onChange={e => setIdentifier(e.target.value)} maxLength={254} autoComplete="username" placeholder={register ? "Enter your email" : "Enter your email or username"}/></label>
       {register && <><label>Username<input required pattern="[A-Za-z0-9_]{3,24}" value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname"/></label><label>Display name<input required maxLength={24} value={displayName} onChange={e => setDisplayName(e.target.value)}/></label></>}
-      <label>Password<div className="auth-password"><input required type={show ? 'text' : 'password'} minLength={register ? 8 : 1} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} autoComplete={register ? 'new-password' : 'current-password'}/><button type="button" onClick={() => setShow(!show)}>{show ? 'Hide' : 'Show'}</button></div></label>
+      <label>Password<div className="auth-password"><input required type={show ? 'text' : 'password'} minLength={register ? 8 : 1} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} autoComplete={register ? 'new-password' : 'current-password'} placeholder="Enter your password"/><button type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{show && <path d="m3 3 18 18"/>}</svg></button></div></label>
       {register && <label>Confirm password<input required type={show ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password"/></label>}
       {error && <p className="auth-error" role="alert">{error}</p>}
-      <button className="auth-primary" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</button>
+      <button className="auth-primary" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign In'}</button>
     </form>
     <button className="auth-link" disabled={busy} onClick={() => { setRegister(!register); setError(''); setPassword(''); setConfirm(''); }}>{register ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
-    <button className="auth-guest" disabled={busy} onClick={() => { sessionStorage.setItem('uno-guest','true'); setGuest(true); }}>Play as guest</button><small>Guest progress is not saved.</small>
-    </section></div></main>;
+    <button className="auth-guest" disabled={busy} onClick={() => { sessionStorage.setItem('uno-guest','true'); setGuest(true); }}>Sign In as Guest</button><small>Guest progress is not saved.</small>
+    </section><img className="auth-mascot" src={import.meta.env.BASE_URL + "auth-mascot.svg"} alt="" /></div></main>;
 }
