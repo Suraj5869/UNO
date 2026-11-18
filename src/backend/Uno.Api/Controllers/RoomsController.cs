@@ -16,7 +16,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         {
             var access = roomStore.Create(request);
             var response = new RoomAccessResponse(
-                RoomResponse.From(access.Room),
+                roomStore.ExecuteLocked(access.Room.Code, currentRoom => RoomResponse.From(currentRoom)),
                 access.PlayerId,
                 access.AccessToken);
             return CreatedAtAction(
@@ -166,7 +166,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         {
             var access = roomStore.PlayAgain(code, request.AccessToken);
             var response = new RoomAccessResponse(
-                RoomResponse.From(access.Room),
+                roomStore.ExecuteLocked(access.Room.Code, currentRoom => RoomResponse.From(currentRoom)),
                 access.PlayerId,
                 access.AccessToken);
             await publisher.PublishRoomAsync(code);
