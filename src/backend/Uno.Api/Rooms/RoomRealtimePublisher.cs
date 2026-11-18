@@ -13,12 +13,15 @@ public sealed class RoomRealtimePublisher(
 {
     private readonly ConcurrentDictionary<string, long> _eventSequences = new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task PublishGameActionAsync(string code, GameActionPayload action)
+    public GameActionEvent CaptureGameAction(string code, GameActionPayload action)
     {
         var sequence = _eventSequences.AddOrUpdate(code, 1, (_, current) => current + 1);
         var gameAction = new GameActionEvent(sequence, action.Action, action.PlayerId, action.Card, action.DrawCount, action.DrawTargetPlayerId, DateTimeOffset.UtcNow);
-        await hubContext.Clients.Group(RoomGroup(code)).SendAsync("GameAction", gameAction);
+        return gameAction;
     }
+
+    public Task PublishGameActionAsync(string code, GameActionEvent action) =>
+        hubContext.Clients.Group(RoomGroup(code)).SendAsync("GameAction", action);
 
     public static string RoomGroup(string code) => $"uno-room:{code.Trim().ToUpperInvariant()}";
 
