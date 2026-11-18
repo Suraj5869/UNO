@@ -16,6 +16,7 @@ public sealed record RegisterRequest([Required, EmailAddress, MaxLength(254)] st
     [Required, StringLength(128, MinimumLength = 8)] string Password);
 public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, [Required, MaxLength(128)] string Password);
 public sealed record RefreshRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string RefreshToken);
+public sealed record AccountIdentity(Guid Id);
 public sealed record AccountRow(Guid Id, string PasswordHash);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
     string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins);
@@ -24,7 +25,7 @@ public sealed record AuthResponse(string AccessToken, string RefreshToken, int E
 [ApiController]
 [Route("api/auth")]
 [EnableRateLimiting("auth")]
-public sealed class AuthController(IServiceProvider services, PasswordHasher<Guid> hasher) : ControllerBase
+public sealed class AuthController(IServiceProvider services, PasswordHasher<AccountIdentity> hasher) : ControllerBase
 {
     private NpgsqlDataSource? Source => services.GetService<NpgsqlDataSource>();
     private JwtSettings? Jwt => services.GetService<JwtSettings>();
@@ -46,7 +47,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Gui
         var id = Guid.NewGuid();
         var email = request.Email.Trim().ToLowerInvariant();
         var username = request.Username.ToLowerInvariant();
-        var hash = hasher.HashPassword(id, request.Password);
+        var hash = hasher.HashPassword(new AccountIdentity(id), request.Password);
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var tx = await connection.BeginTransactionAsync(ct);
         try
@@ -85,15 +86,15 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Gui
         if (account is null)
         {
             // Perform comparable password hashing work for unknown accounts.
-            hasher.HashPassword(Guid.Empty, request.Password);
+            hasher.HashPassword(new AccountIdentity(Guid.Empty), request.Password);
             return Unauthorized(new { message = "Invalid credentials." });
         }
-        var verification = hasher.VerifyHashedPassword(account.Id, account.PasswordHash, request.Password);
+        var verification = hasher.VerifyHashedPassword(new AccountIdentity(account.Id), account.PasswordHash, request.Password);
         if (verification == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials." });
         await using var tx = await connection.BeginTransactionAsync(ct);
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
-                new { account.Id, Hash=hasher.HashPassword(account.Id,request.Password) }, tx,cancellationToken:ct));
+                new { account.Id, Hash=hasher.HashPassword(new AccountIdentity(account.Id),request.Password) }, tx,cancellationToken:ct));
         var response = await Issue(connection, tx, jwt, account.Id, ct);
         await tx.CommitAsync(ct);
         return Ok(response);
