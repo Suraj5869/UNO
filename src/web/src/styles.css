@@ -384,3 +384,30 @@ body:has(.room-heading) .hand-card{flex:0 0 auto}
 @media(prefers-reduced-motion:reduce){.victory-confetti i{animation:none}}
 
 .friends-divider{display:flex;align-items:center;gap:12px;color:#c4c6ee;font-size:11px;letter-spacing:1px;font-weight:600}.friends-divider::before,.friends-divider::after{content:"";height:1px;flex:1;background:#7779cf66}.batch2-room-panel .batch3-join{gap:12px}.batch2-room-panel .batch3-join input::placeholder{letter-spacing:normal;font-weight:400}.batch2-room-panel .batch3-join input{text-transform:uppercase;width:100%;box-sizing:border-box}.batch2-room-panel .batch3-join label{font-weight:600}
+
+/* Lobby viewport and start action spacing */
+.batch3-lobby .start-area{padding:16px;border:1px solid #7779cf66;border-radius:15px;gap:16px;margin-top:22px;align-items:center}
+.batch3-lobby .start-area>div{flex:1;min-width:0;gap:6px}
+.batch3-lobby .start-area strong{font-size:14px;line-height:1.3}
+.batch3-lobby .start-area>div>span{font-size:12px;line-height:1.45}
+.batch3-lobby .start-area .button{flex-shrink:0;min-height:44px;padding:12px 20px}
+.batch3-lobby .start-area .button span{color:inherit}
+.batch3-lobby .lobby-seats{grid-auto-rows:minmax(100px,auto);align-content:start}
+@media(min-width:1001px) and (min-height:680px){
+  .lobby-shell:has(.batch3-lobby){height:100dvh;min-height:0}
+  .lobby-shell:has(.batch3-lobby) .topbar{flex-shrink:0}
+  body:has(.batch3-lobby) .lobby-shell .main-content{flex:1;min-height:0;display:flex;flex-direction:column;padding:clamp(12px,2vh,24px) clamp(16px,2vw,32px)}
+  .lobby-shell:has(.batch3-lobby) .room-view{display:flex;flex-direction:column;flex:1;min-height:0}
+  .lobby-shell:has(.batch3-lobby) .room-heading{flex-shrink:0;margin-bottom:18px}
+  .lobby-shell:has(.batch3-lobby) .room-heading h1{margin:8px 0}
+  .batch3-lobby{flex:1;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .batch3-lobby .players-panel{display:flex;flex-direction:column;min-height:0;min-width:0}
+  .batch3-lobby .panel-title,.batch3-lobby .invite-strip{flex-shrink:0}
+  .batch3-lobby .lobby-seats{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#7779cf #171a53;scrollbar-gutter:stable;padding:4px 8px 4px 0;margin-top:16px}
+  .batch3-lobby .invite-strip{margin-top:12px}
+  .batch3-lobby .settings-panel{min-height:0;overflow-y:auto;scrollbar-width:thin}
+}
+@media(max-width:1000px), (max-height:679px){
+  .batch3-lobby .lobby-seats{max-height: min(48dvh,420px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#7779cf #171a53;padding:4px 8px 4px 0}
+}
+@media(max-width:700px){.batch3-lobby .start-area{align-items:stretch;padding:14px;gap:12px}.batch3-lobby .start-area .button{width:100%}}
