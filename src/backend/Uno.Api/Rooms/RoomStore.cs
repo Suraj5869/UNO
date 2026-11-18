@@ -19,6 +19,29 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<string, Dictionary<Guid, string>> _rematchCandidatesByRoomCode =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly HashSet<string> _matchmakingRooms = new(StringComparer.OrdinalIgnoreCase);
+
+    // Initial quick-match preset: two players, Classic Official rules.
+    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) FindMatch(string displayName)
+    {
+        lock (_sync)
+        {
+            var waiting = _roomsByCode.Values.FirstOrDefault(room =>
+                _matchmakingRooms.Contains(room.Code) &&
+                room.Status == UnoRoomStatus.Waiting && room.Players.Count == 1);
+            if (waiting is null)
+            {
+                var created = Create(new CreateRoomRequest(displayName, 2, UnoRuleSet.Official));
+                _matchmakingRooms.Add(created.Room.Code);
+                return created;
+            }
+            var joined = Join(waiting.Code, displayName);
+            waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
+            _matchmakingRooms.Remove(waiting.Code);
+            return joined;
+        }
+    }
+
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
         CreateRoomRequest request)
     {
