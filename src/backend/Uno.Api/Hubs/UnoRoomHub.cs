@@ -167,13 +167,19 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         await publisher.PublishGameStateAsync(code);
     }
 
-    public Task CatchUno(string code, string accessToken, Guid targetPlayerId) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
-            new UnoGameEngine().CatchUno(
-                RequireGame(room),
-                GetGamePlayerId(room, playerId),
-                GetGamePlayerId(room, targetPlayerId)),
-            _ => new GameActionPayload("CardsDrawn", targetPlayerId, null, 2));
+    public Task CatchUno(string code, string accessToken, Guid targetPlayerId)
+    {
+        var drawCount = 0;
+        return ExecuteAction(code, accessToken, (room, playerId) =>
+        {
+            var game = RequireGame(room);
+            var targetId = GetGamePlayerId(room, targetPlayerId);
+            var target = game.Players.First(player => player.Id == targetId);
+            var before = target.Hand.Count;
+            new UnoGameEngine().CatchUno(game, GetGamePlayerId(room, playerId), targetId);
+            drawCount = target.Hand.Count - before;
+        }, _ => drawCount > 0 ? new GameActionPayload("CardsDrawn", targetPlayerId, null, drawCount) : null);
+    }
 
     private async Task ExecuteAction(
         string code,
