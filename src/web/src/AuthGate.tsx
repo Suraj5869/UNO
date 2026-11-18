@@ -91,5 +91,5 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     </form>
     <button className="auth-link" disabled={busy} onClick={() => { setRegister(!register); setError(''); setPassword(''); setConfirm(''); }}>{register ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
     <button className="auth-guest" disabled={busy} onClick={() => { sessionStorage.setItem('uno-guest','true'); setGuest(true); }}>Sign In as Guest</button><small>Guest progress is not saved.</small>
-    </section><img className="auth-mascot" src={import.meta.env.BASE_URL + "auth-mascot.svg"} alt="" /></div></main>;
+    <img className="auth-peeking-mascot" src={import.meta.env.BASE_URL + "auth-mascot-3d.webp"} alt="" onError={e => { e.currentTarget.style.display = "none"; }}/></section></div></main>;
 }
