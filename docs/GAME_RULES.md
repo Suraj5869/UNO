@@ -9,7 +9,7 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 - Use the standard 108-card Classic UNO deck.
 - Support 2–10 total participants (humans plus bots).
 - Deal seven cards to each player.
-- The current setup implementation starts with a number card as the first discard. This is an intentional temporary simplification until we implement and test the official initial-action-card rules.
+- Both presets deliberately start with a number card as the first discard. The first player may play any normally legal action or number card, including wilds with the normal color selection and challenge rules.
 
 ## Finishing a match
 
@@ -40,7 +40,6 @@ Private-room creators can choose Official Rules or House Rules before the game s
 ## Still to implement or decide
 
 - Integrate UNO-call actions into room/API transport so call timing is enforced consistently in real-time multiplayer.
-- Exact initial discard behavior for Skip, Reverse, Draw Two, Wild, and Wild Draw Four.
 - Additional House Rules options may be added later; current stacking is fixed to same-type only.
 - Match scoring and whether a match consists of multiple rounds.
 - Behavior when no cards remain anywhere to draw after recycling.
