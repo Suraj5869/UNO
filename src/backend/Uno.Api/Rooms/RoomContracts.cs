@@ -28,6 +28,8 @@ public sealed record RoomResponse(
     IReadOnlyList<RoomPlayerResponse> Players,
     GameStatus? GameStatus)
 {
+    public long SnapshotSequence { get; init; }
+
     public static RoomResponse From(UnoGameRoom room) =>
         new(
             room.Id,
@@ -40,7 +42,7 @@ public sealed record RoomResponse(
                 player.DisplayName,
                 player.IsCreator,
                 player.GamePlayerId)).ToArray(),
-            room.Game?.Status);
+            room.Game?.Status) { SnapshotSequence = SnapshotOrder.Next() };
 }
 
 /// <summary>
@@ -51,3 +53,9 @@ public sealed record RoomAccessResponse(
     RoomResponse Room,
     Guid PlayerId,
     string AccessToken);
+
+internal static class SnapshotOrder
+{
+    private static long _sequence;
+    public static long Next() => System.Threading.Interlocked.Increment(ref _sequence);
+}
