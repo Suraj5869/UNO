@@ -322,3 +322,38 @@ body:has(.room-heading) .hand-card{flex:0 0 auto}
 @media(max-width:1050px){.auth-peeking-mascot{height: min(100%, 430px)}}
 @media(max-width:760px){.auth-peeking-mascot{display:none}}
 @media(prefers-reduced-motion:reduce){.auth-peeking-mascot{animation:none}}
+
+/* Batch 2: dashboard and private room creation */
+.dashboard-shell{min-height:100dvh;background:radial-gradient(ellipse at 28% 42%,#3436d6,transparent 55%),radial-gradient(ellipse at 90% 100%,#2025c4,transparent 60%),#101348;color:#fff7e8;font-family:'Fredoka','DM Sans',sans-serif}
+.dashboard-shell .topbar{background:transparent;border:0;box-shadow:none}
+.dashboard-shell .brand{color:#ffca27;font-size:32px;font-weight:700}
+.dashboard-shell .main-content{width:100%;max-width:1280px;margin-inline:auto;padding:20px clamp(18px,4vw,48px) 32px;box-sizing:border-box}
+.dashboard-shell .footer{background:transparent;color:#c4c6ee;border-color:#ffffff18}
+.batch2-screen{display:grid;gap:24px}
+.dashboard-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,290px);align-items:center;gap:20px;min-height:200px;padding:24px 34px;border:1px solid #7779ef80;border-radius:28px;background:radial-gradient(ellipse at 85% 80%,#5963ea99,transparent 68%),linear-gradient(120deg,#20237c,#3034b0);box-shadow:0 14px 35px #08092855;overflow:hidden}
+.dashboard-hero img{width:100%;max-height:220px;object-fit:contain;filter:drop-shadow(0 12px 12px #08082e88)}
+.dashboard-kicker{font-size:12px;letter-spacing:1.5px;color:#b8bbff;font-weight:600}
+.dashboard-hero h1,.batch2-room-intro h1{font:700 clamp(35px,5vw,64px)/1.04 'Fredoka',sans-serif;margin:10px 0;letter-spacing:-1px}
+.dashboard-hero em{font-style:normal;color:#ffca27}
+.dashboard-hero p,.batch2-room-intro p{font-size:17px;color:#e0e1ff;margin:8px 0}
+.dashboard-content{display:grid;gap:16px}.dashboard-content h2,.batch2-room-panel h2{font:600 24px 'Fredoka',sans-serif;margin:0}
+.dashboard-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.dashboard-tile{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:205px;padding:18px 22px;border:1px solid #ffffff66;border-radius:24px;color:white;box-shadow:0 6px 0 #0004,0 14px 26px #08082e55;transition:transform .2s,filter .2s;overflow:hidden}
+.dashboard-tile:not(:disabled):hover{transform:translateY(-4px);filter:brightness(1.08)}
+.dashboard-tile:focus-visible,.batch2-screen button:focus-visible{outline:3px solid white;outline-offset:4px}
+.tile-match{background:linear-gradient(145deg,#ffe16a,#ffb21e);color:#352052}
+.tile-friends{background:linear-gradient(145deg,#36d5ad,#138e82)}
+.tile-bots{background:linear-gradient(145deg,#7776d3,#49469f)}
+.dashboard-tile:disabled{cursor:not-allowed;opacity:.8}.dashboard-tile strong{font-size:clamp(20px,2.5vw,29px);line-height:1.1}.dashboard-tile small{font-size:14px;max-width:90%;margin-top:7px;opacity:.95}
+.tile-art{display:block;width:80px;height:80px;align-self:flex-end;margin-bottom:5px;filter:drop-shadow(0 5px 4px #0004)}.tile-art svg{width:100%;height:100%}.tile-arrow{position:absolute;right:15px;top:15px;font-size:24px}
+.variant-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.variant-strip>div{display:grid;gap:4px;background:#1c205b;border:1px solid #7779cf55;border-radius:15px;padding:14px 18px}.variant-strip small{color:#c7c9ed}.variant-strip .variant-active{border-color:#ffca27;color:#ffca27}
+.dashboard-guest{display:grid;gap:8px;margin-bottom:10px}.dashboard-guest input,.batch2-room-panel input:not([type=radio]){border:2px solid #55c9ad;background:#0b103f;border-radius:999px;padding:12px 16px;color:white;min-height:46px}
+.batch2-room-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,500px);gap:clamp(24px,6vw,80px);align-items:center;padding:clamp(8px,4vh,40px) 0}
+.batch2-room-intro img{display:block;width:min(100%,440px);margin-top:12px;filter:drop-shadow(0 14px 10px #06062777)}
+.batch2-back{color:#fff7e8;background:#24266c;border:1px solid #7779cf;border-radius:999px;padding:10px 18px;margin-bottom:22px}
+.batch2-room-panel{display:grid;gap:20px;padding:clamp(20px,4vw,36px);background:linear-gradient(145deg,#292a91,#11144f);border:1px solid #8483edaa;border-radius:28px;box-shadow:0 20px 45px #06072f88}
+.batch2-create-form,.batch2-room-panel .join-form{display:grid;gap:18px;margin:0}.batch2-create-form fieldset{min-width:0;border:0;padding:0;margin:0;display:grid;gap:10px}.batch2-create-form legend{font-weight:600;font-size:17px;margin-bottom:10px}.capacity-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.capacity-grid button{min-height:45px;background:#16194e;border:1px solid #7779cf;border-radius:12px;color:#fff;font-size:18px;font-weight:600}.capacity-grid button.selected{background:#ffca27;color:#171a50;border-color:#ffdf70;box-shadow:0 3px 0 #b57918}
+.batch2-rule{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #7779cf;border-radius:15px;background:#171a53;cursor:pointer}.batch2-rule.selected{border-color:#55c9ad;background:#23356f}.batch2-rule input{accent-color:#24bd98;width:19px;height:19px;flex-shrink:0}.batch2-rule span{display:grid;gap:4px}.batch2-rule small,.batch2-hint,.batch2-create-form fieldset>small{color:#c9cbed;font-size:13px}.batch2-hint{text-align:center}
+.batch2-primary,.batch2-secondary{width:100%;min-height:50px;border:0;border-radius:999px;font:700 18px 'Fredoka',sans-serif;padding:12px 18px;box-shadow:0 4px 0 #0003}.batch2-primary{background:#ffca27;color:#171a50}.batch2-secondary{background:#ff5849;color:white}.batch2-room-panel button:disabled{opacity:.65;cursor:not-allowed}
+@media(max-width:760px){.dashboard-shell .main-content{padding:12px 16px 24px}.dashboard-hero{padding:20px;min-height:150px;grid-template-columns:minmax(0,1fr) 100px;gap:8px}.dashboard-hero h1{font-size:36px}.dashboard-hero p{font-size:14px}.dashboard-modes{grid-template-columns:1fr;gap:12px}.dashboard-tile{min-height:110px;padding:20px 105px 20px 20px;justify-content:center}.tile-art{position:absolute;right:15px;bottom:10px;width:70px;height:70px;margin:0}.tile-arrow{right:12px;top:8px;font-size:18px}.dashboard-tile small{max-width:100%}.variant-strip{gap:7px}.variant-strip>div{padding:10px;font-size:14px}.variant-strip small{font-size:11px}.batch2-room-layout{grid-template-columns:1fr;gap:18px}.batch2-room-intro img{display:none}.batch2-room-intro h1{font-size:40px}.batch2-back{margin-bottom:10px}.batch2-room-panel{padding:20px}}
+@media(prefers-reduced-motion:reduce){.dashboard-tile{transition:none}}
