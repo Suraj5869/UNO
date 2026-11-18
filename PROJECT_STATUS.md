@@ -80,3 +80,8 @@ Fresh artifacts are in `%TEMP%\uno-audit-20261118-15824`. The run used the exist
 4. Complete opening-action rules and prioritize bots, public matchmaking, accounts, persistence, native clients and additional variants against product goals.
 
 The user approved the test implementation after this initial review. Gameplay defect fixes and product decisions remain separate follow-up work.
+
+
+## P0 gameplay stabilization — implemented, verification pending
+
+Direction-aware departures return hands to the shuffled draw pile, preserve the existing active turn when another seat leaves, and transfer outstanding penalties to the next seat when the active player leaves. Challenges are disabled if the offender leaves or becomes the penalty recipient. A remaining single player completes the match. Turn actions are rejected at or after the server deadline; timeout after drawing passes without another draw. The next timeout deadline is anchored to the supplied timeout tick. Added 17 engine regression cases. Backend and browser suites must be run before declaring this verified. Realtime snapshot ordering remains P1.
