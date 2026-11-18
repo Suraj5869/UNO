@@ -30,11 +30,12 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
   return { name, context, page };
 }
 
-async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: 'official' | 'house') {
+async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: 'official' | 'house', fixture: string) {
   const players: TestPlayer[] = [
     { name: 'Host', context: null as unknown as BrowserContext, page: hostPage },
   ];
 
+  await hostPage.setExtraHTTPHeaders({ 'X-Test-Deal': fixture });
   await hostPage.goto('/');
   await hostPage.getByLabel('Your display name').fill('Host');
   await hostPage.getByLabel('Maximum players').selectOption('3');
@@ -90,38 +91,6 @@ async function waitForTurnChange(players: TestPlayer[], previousActorIndex: numb
   return currentTurnIndex(players);
 }
 
-async function cardMatches(card: ReturnType<Page['locator']>, matcher: RegExp): Promise<boolean> {
-  const label = (await card.locator('b').textContent())?.trim() ?? '';
-  return matcher.test(label);
-}
-
-
-async function isPlayableTargetCard(
-  page: Page,
-  card: ReturnType<Page['locator']>,
-  matcher: RegExp,
-): Promise<boolean> {
-  if (!(await cardMatches(card, matcher))) return false;
-
-  const label = (await card.locator('b').textContent())?.trim() ?? '';
-
-  // Wild cards can be played regardless of the active color.
-  if (label === 'WILD' || label === '+4') return true;
-
-  const active = await activeColor(page);
-  const topLabel = (await page.locator('.top-card b').textContent())?.trim();
-
-  const cardColor = await card.evaluate(element =>
-    ['red', 'yellow', 'green', 'blue'].find(color =>
-      element.classList.contains(color),
-    ) ?? 'wild',
-  );
-
-  // A card is playable when its color or symbol matches the discard.
-  return cardColor === active || label === topLabel;
-}
-
-
 async function chooseWildColor(page: Page, color: 'Red' | 'Yellow' | 'Green' | 'Blue') {
   await expect(page.locator('.color-picker')).toBeVisible();
   await page.locator('.color-picker').getByRole('button', { name: color, exact: true }).click();
@@ -161,86 +130,20 @@ async function playTargetCard(
   matcher: RegExp,
   color: 'Red' | 'Yellow' | 'Green' | 'Blue' = 'Blue',
 ): Promise<SpecialCardResult> {
-  for (let attempt = 0; attempt < 160; attempt++) {
-    const actorIndex = await currentTurnIndex(players);
-    const actor = players[actorIndex];
-    
-const playable = actor.page.locator('.hand-card:not([disabled])');
-let target: ReturnType<Page['locator']> | null = null;
-
-for (let i = 0; i < await playable.count(); i++) {
-  const candidate = playable.nth(i);
-
-  if (await isPlayableTargetCard(actor.page, candidate, matcher)) {
-    target = candidate;
-    break;
-  }
-}
-
-
-if (target) {
-      const handSizeBeforePlay = await actor.page.locator('.hand-card').count();
-      // Avoid ending the match while a test is trying to exercise a special card.
-      if (handSizeBeforePlay === 1) {
-        await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
-      } else {
-        const activeColorBeforePlay = await activeColor(actor.page);
-        const directionBeforePlay = await currentDirection(actor.page);
-        const offenderHadMatchingColor = matcher === specialLabels.wildDrawFour
-          ? await hasMatchingColorInHand(actor.page, activeColorBeforePlay)
-          : false;
-        await target.click();
-
-if (matcher === specialLabels.wild || matcher === specialLabels.wildDrawFour) {
-  await chooseWildColor(actor.page, color);
-}
-
-if (handSizeBeforePlay === 2) {
-  await actor.page.getByRole('button', { name: 'UNO!' }).click();
-}
-
-// Verify that the server accepted the play before checking turn progression.
-await expect(actor.page.locator('.hand-card')).toHaveCount(
-  handSizeBeforePlay - 1,
-  { timeout: 15_000 },
-);
-
-await waitForTurnChange(players, actorIndex);
-        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
-      }
-    } else {
-      await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
-    }
-
-    await expect.poll(async () =>
-      (await actor.page.locator('.pass-decision').count()) > 0 ||
-      (await currentTurnIndex(players)) !== actorIndex,
-    { timeout: 12_000 }).toBeTruthy();
-
-    if (await actor.page.locator('.pass-decision').count()) {
-      const drawnCard = actor.page.locator('.hand-card').last();
-      if (await cardMatches(drawnCard, matcher) && !(await drawnCard.isDisabled())) {
-        const handSizeBeforePlay = await actor.page.locator('.hand-card').count();
-        const activeColorBeforePlay = await activeColor(actor.page);
-        const directionBeforePlay = await currentDirection(actor.page);
-        const offenderHadMatchingColor = matcher === specialLabels.wildDrawFour
-          ? await hasMatchingColorInHand(actor.page, activeColorBeforePlay)
-          : false;
-        await drawnCard.click();
-        if (matcher === specialLabels.wild || matcher === specialLabels.wildDrawFour) {
-          await chooseWildColor(actor.page, color);
-        }
-        if (handSizeBeforePlay === 2) {
-          await actor.page.getByRole('button', { name: 'UNO!' }).click();
-        }
-        await waitForTurnChange(players, actorIndex);
-        return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
-      }
-      await actor.page.getByRole('button', { name: 'Pass' }).click();
-    }
-  }
-
-  throw new Error(`Could not reach a playable card matching ${matcher} within 160 turns.`);
+  const actorIndex = 0;
+  const page = players[actorIndex].page;
+  const activeColorBeforePlay = await activeColor(page);
+  const directionBeforePlay = await currentDirection(page);
+  const handSizeBeforePlay = await page.locator('.hand-card').count();
+  const wild = matcher === specialLabels.wild || matcher === specialLabels.wildDrawFour;
+  const cards = page.locator(wild ? '.hand-card' : '.hand-card.' + activeColorBeforePlay);
+  const target = cards.filter({ has: page.locator('b', { hasText: matcher }) }).first();
+  const offenderHadMatchingColor = await hasMatchingColorInHand(page, activeColorBeforePlay);
+  await target.click();
+  if (wild) await chooseWildColor(page, color);
+  await expect(page.locator('.hand-card')).toHaveCount(handSizeBeforePlay - 1);
+  await waitForTurnChange(players, actorIndex);
+  return { actorIndex, handSizeBeforePlay, activeColorBeforePlay, offenderHadMatchingColor, directionBeforePlay };
 }
 
 async function closePlayers(players: TestPlayer[]) {
@@ -248,7 +151,7 @@ async function closePlayers(players: TestPlayer[]) {
 }
 
 test('Skip advances over the next player', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official', 'skip');
   try {
     const result = await playTargetCard(players, specialLabels.skip);
     const skippedIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
@@ -261,7 +164,7 @@ test('Skip advances over the next player', async ({ browser, page }) => {
 });
 
 test('Reverse changes direction and sends play to the previous player', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official', 'reverse');
   try {
     const result = await playTargetCard(players, specialLabels.reverse);
     const expectedDirection = result.directionBeforePlay === 'clockwise' ? '↺' : '↻';
@@ -281,7 +184,7 @@ test('Reverse changes direction and sends play to the previous player', async ({
 });
 
 test('Wild lets the player choose a color and passes the turn', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official', 'wild');
   try {
     const result = await playTargetCard(players, specialLabels.wild, 'Green');
     await expect(players[result.actorIndex].page.locator('.top-card')).toHaveClass(/selected-wild-color-green/);
@@ -293,7 +196,7 @@ test('Wild lets the player choose a color and passes the turn', async ({ browser
 });
 
 test('Wild Draw Four can be accepted and applies four cards', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'official');
+  const players = await startThreePlayerGame(browser, page, 'official', 'legalFour');
   try {
     const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Red');
     const challengerIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
@@ -309,32 +212,36 @@ test('Wild Draw Four can be accepted and applies four cards', async ({ browser, 
   }
 });
 
-test('Wild Draw Four challenge applies the correct outcome', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'official');
-  try {
-    const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Yellow');
-    const challengerIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
-    const offender = players[result.actorIndex];
-    const challenger = players[challengerIndex];
-    const offenderHandSize = await offender.page.locator('.hand-card').count();
-    const challengerHandSize = await challenger.page.locator('.hand-card').count();
+for (const fixture of ['legalFour', 'illegalFour']) {
+  test(`Wild Draw Four challenge resolves a ${fixture} deal`, async ({ browser, page }) => {
+    const players = await startThreePlayerGame(browser, page, 'official', fixture);
+    try {
+      const result = await playTargetCard(players, specialLabels.wildDrawFour, 'Yellow');
+      const challengerIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
+      const offender = players[result.actorIndex];
+      const challenger = players[challengerIndex];
+      const offenderHandSize = await offender.page.locator('.hand-card').count();
+      const challengerHandSize = await challenger.page.locator('.hand-card').count();
 
-    await challenger.page.getByRole('button', { name: 'Challenge' }).click();
-    if (result.offenderHadMatchingColor) {
-      await expect(offender.page.locator('.hand-card')).toHaveCount(offenderHandSize + 4);
-      await expect(challenger.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
-    } else {
-      await expect(challenger.page.locator('.hand-card')).toHaveCount(challengerHandSize + 6);
-      const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
-      await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+      await challenger.page.getByRole('button', { name: 'Challenge' }).click();
+      expect(result.offenderHadMatchingColor).toBe(fixture === 'illegalFour');
+      if (result.offenderHadMatchingColor) {
+        await expect(offender.page.locator('.hand-card')).toHaveCount(offenderHandSize + 4);
+        await expect(challenger.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+      } else {
+        await expect(challenger.page.locator('.hand-card')).toHaveCount(challengerHandSize + 6);
+        const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
+        await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+      }
+    } finally {
+      await closePlayers(players);
     }
-  } finally {
-    await closePlayers(players);
-  }
-});
+  });
+
+}
 
 test('House Rules Draw Two creates a penalty, permits same-type stacking, and can be accepted', async ({ browser, page }) => {
-  const players = await startThreePlayerGame(browser, page, 'house');
+  const players = await startThreePlayerGame(browser, page, 'house', 'drawTwo');
   try {
     const first = await playTargetCard(players, specialLabels.drawTwo);
     const secondIndex = playerAtOffset(first.actorIndex, 1, first.directionBeforePlay, players.length);
@@ -351,22 +258,12 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
       has: second.page.locator('b', { hasText: specialLabels.drawTwo }),
     }).first();
 
-    const didStack = (await stackCard.count()) > 0;
-    if (didStack) {
-      await stackCard.click();
-      const stackedPenaltyIndex = playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length);
-      await expect.poll(
-        () => currentTurnIndex(players),
-        { timeout: 15_000, message: 'Stacked Draw Two should transfer the penalty to the next player' },
-      ).toBe(stackedPenaltyIndex);
-      await expect(players[stackedPenaltyIndex].page.getByText(/Draw penalty · 4 cards/)).toBeVisible();
-    }
-
-    const penaltyPlayerIndex = didStack
-      ? playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length)
-      : secondIndex;
+    await expect(stackCard).toBeEnabled();
+    await stackCard.click();
+    const penaltyPlayerIndex = playerAtOffset(secondIndex, 1, first.directionBeforePlay, players.length);
     const penaltyPlayer = players[penaltyPlayerIndex];
-    const penaltyAmount = didStack ? 4 : 2;
+    const penaltyAmount = 4;
+    await expect(penaltyPlayer.page.getByText(/Draw penalty.*4 cards/)).toBeVisible();
     const handSize = await penaltyPlayer.page.locator('.hand-card').count();
 
     await penaltyPlayer.page.getByRole('button', { name: `Draw ${penaltyAmount}` }).click();

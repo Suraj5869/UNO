@@ -1,3 +1,4 @@
+import { reachHostUno } from './number-turns';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(180_000);
@@ -11,6 +12,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 
 async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<TestPlayer[]> {
   const host: TestPlayer = { name: 'Host', context: hostPage.context(), page: hostPage };
+  await hostPage.setExtraHTTPHeaders({ 'X-Test-Deal': 'numbers' });
   await hostPage.goto('/');
   await hostPage.getByLabel('Your display name').fill(host.name);
   await hostPage.getByLabel('Maximum players').selectOption('2');
@@ -32,139 +34,39 @@ async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<Tes
   return [host, friend];
 }
 
-async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
-  let matchCompleted = false;
-  await expect.poll(async () => {
-    const completed = await Promise.all(
-      players.map(player => player.page.locator('.game-over-overlay').count()),
-    );
-    if (completed.some(count => count > 0)) {
-      matchCompleted = true;
-      return 0;
-    }
+async function finishMatch(players: TestPlayer[]) {
+  const [winner, other] = players;
+  await reachHostUno(players);
+  await winner.page.getByRole('button', { name: 'UNO!' }).click();
+  await other.page.locator('.hand-card').first().click();
+  await other.page.getByRole('button', { name: 'UNO!' }).click();
+  await winner.page.locator('.hand-card').first().click();
 
-    for (let index = 0; index < players.length; index++) {
-      if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
-    }
-    return -1;
-  }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
-
-  if (matchCompleted) {
-    throw new Error('The match completed before the rematch test reached its nominated winner.');
-  }
-
-  for (let index = 0; index < players.length; index++) {
-    if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
-  }
-  throw new Error('No player received the active turn.');
-}
-
-async function isPlayableNumberCard(page: Page, cardIndex: number): Promise<boolean> {
-  return page.locator('.hand-card').evaluateAll((cards, index) => {
-    const topCard = document.querySelector('.top-card');
-    const card = cards[index as number];
-    if (!topCard || !card) return false;
-    const topClasses = Array.from(topCard.classList);
-    const activeColor = ['red', 'yellow', 'green', 'blue'].find(color => topClasses.includes(color))
-      ?? /selected-wild-color-(red|yellow|green|blue)/.exec(topClasses.join(' '))?.[1];
-    const topLabel = topCard.querySelector('b')?.textContent?.trim();
-    const label = card.querySelector('b')?.textContent?.trim() ?? '';
-    if (!/^\d$/.test(label)) return false;
-    return (!!activeColor && card.classList.contains(activeColor)) || label === topLabel;
-  }, cardIndex);
-}
-
-async function findPlayableNumberCard(page: Page): Promise<number> {
-  const count = await page.locator('.hand-card').count();
-  for (let index = 0; index < count; index++) {
-    if (await isPlayableNumberCard(page, index)) return index;
-  }
-  return -1;
-}
-
-async function finishTurnAfterDraw(player: TestPlayer, handSizeBeforeDraw: number) {
-  await expect.poll(async () =>
-    (await player.page.locator('.pass-decision').count()) > 0 ||
-    (await player.page.getByRole('heading', { name: /^Waiting on / }).count()) > 0,
-  { timeout: 12_000 }).toBeTruthy();
-
-  if (await player.page.locator('.pass-decision').count()) {
-    const drawnIndex = handSizeBeforeDraw;
-    if (handSizeBeforeDraw > 1 && await isPlayableNumberCard(player.page, drawnIndex)) {
-      await player.page.locator('.hand-card').nth(drawnIndex).click();
-    } else {
-      await player.page.getByRole('button', { name: 'Pass' }).click();
-    }
-  }
-  await expect(player.page.getByRole('heading', { name: /^Waiting on / })).toBeVisible({ timeout: 15_000 });
-}
-
-async function advanceToMatchWinner(players: TestPlayer[]): Promise<number> {
-  let targetWinnerIndex: number | null = null;
-
-  // Only number cards are played. The first player who reaches one card is
-  // nominated as the winner; other players are never allowed to play their
-  // final card. This keeps the browser scenario deterministic without exposing
-  // or modifying any opponent's hidden hand.
-  for (let attempt = 0; attempt < 600; attempt++) {
-    const actorIndex = await currentTurnIndex(players);
-    const actor = players[actorIndex];
-    const handSize = await actor.page.locator('.hand-card').count();
-    const playableIndex = await findPlayableNumberCard(actor.page);
-
-    if (handSize === 1 && actorIndex === targetWinnerIndex && playableIndex >= 0) {
-      await actor.page.locator('.hand-card').nth(playableIndex).click();
-      for (const player of players) {
-        await expect(player.page.locator('.game-over-overlay')).toBeVisible({ timeout: 15_000 });
-      }
-      return actorIndex;
-    }
-
-    if (handSize > 1 && playableIndex >= 0) {
-      await actor.page.locator('.hand-card').nth(playableIndex).click();
-      await expect(actor.page.locator('.hand-card')).toHaveCount(handSize - 1);
-      if (handSize === 2) {
-        if (targetWinnerIndex === null) targetWinnerIndex = actorIndex;
-        const unoButton = actor.page.getByRole('button', { name: 'UNO!' });
-        await expect(unoButton).toBeEnabled();
-        await unoButton.click();
-      }
-      await expect(actor.page.getByRole('heading', { name: /^Waiting on / })).toBeVisible({ timeout: 15_000 });
-      continue;
-    }
-
-    await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
-    await finishTurnAfterDraw(actor, handSize);
-  }
-
-  throw new Error('Could not complete a match within 600 legal number-card turns.');
+  await expect(winner.page.locator('.game-over-overlay')).toContainText(winner.name + ' wins!');
+  await expect(other.page.locator('.game-over-overlay')).toContainText(winner.name + ' wins!');
 }
 
 test('the winner sees the match result and both players can opt into a fresh rematch lobby', async ({ browser, page }) => {
   const players = await startTwoPlayerGame(browser, page);
   try {
-    const winnerIndex = await advanceToMatchWinner(players);
-    const winner = players[winnerIndex];
-    const other = players[1 - winnerIndex];
+    const [winner, other] = players;
+    await finishMatch(players);
 
-    await expect(winner.page.locator('.game-over-overlay')).toContainText(winner.name + ' wins!');
-    await expect(other.page.locator('.game-over-overlay')).toContainText(winner.name + ' wins!');
-
-    await winner.page.getByRole('button', { name: 'Play Again' }).click();
-    await expect(winner.page.getByRole('heading', { name: /Room/ })).toBeVisible();
-    await expect(winner.page.getByRole('heading', { name: 'Players 1/2' })).toBeVisible();
-    await expect(winner.page.getByText('HOST', { exact: true })).toBeVisible();
-    await expect(winner.page.getByRole('button', { name: /Start game/ })).toBeDisabled();
+    await other.page.getByRole('button', { name: 'Play Again' }).click();
+    await expect(other.page.getByRole('heading', { name: /Room/ })).toBeVisible();
+    await expect(other.page.getByRole('heading', { name: 'Players 1/2' })).toBeVisible();
+    await expect(other.page.getByText('HOST', { exact: true })).toBeVisible();
+    await expect(other.page.getByRole('button', { name: /Start game/ })).toBeDisabled();
 
     // The non-opted player must remain on the completed-match screen until
     // they explicitly choose to join the rematch.
-    await expect(other.page.locator('.game-over-overlay')).toBeVisible();
-    await other.page.getByRole('button', { name: 'Play Again' }).click();
+    await expect(winner.page.locator('.game-over-overlay')).toBeVisible();
+    await winner.page.getByRole('button', { name: 'Play Again' }).click();
 
-    await expect(winner.page.getByRole('heading', { name: 'Players 2/2' })).toBeVisible();
     await expect(other.page.getByRole('heading', { name: 'Players 2/2' })).toBeVisible();
-    await expect(other.page.getByText('HOST', { exact: true })).toBeVisible();
-    await winner.page.getByRole('button', { name: /Start game/ }).click();
+    await expect(winner.page.getByRole('heading', { name: 'Players 2/2' })).toBeVisible();
+    await expect(winner.page.getByText('HOST', { exact: true })).toBeVisible();
+    await other.page.getByRole('button', { name: /Start game/ }).click();
 
     for (const player of players) {
       await expect(player.page.getByText('MATCH IN PROGRESS')).toBeVisible();
@@ -172,5 +74,24 @@ test('the winner sees the match result and both players can opt into a fresh rem
     }
   } finally {
     await Promise.all(players.slice(1).map(player => player.context.close()));
+  }
+});
+
+test('starting a rematch closes the previous non-returning player token', async ({ browser, page, request }) => {
+  const players = await startTwoPlayerGame(browser, page);
+  const [oldHost, newHost] = players;
+  try {
+    await finishMatch(players);
+    const previous = await oldHost.page.evaluate(() => JSON.parse(sessionStorage.getItem('uno-room-access')!));
+    await newHost.page.getByRole('button', { name: 'Play Again' }).click();
+    await expect(newHost.page.getByRole('heading', { name: 'Players 1/2' })).toBeVisible();
+    const url = 'http://localhost:7137/api/rooms/' + previous.room.code;
+    expect((await request.post(url + '/join', { data: { displayName: 'New seat' } })).ok()).toBeTruthy();
+    await newHost.page.getByRole('button', { name: /Start game/ }).click();
+    await expect(newHost.page.locator('.hand-card')).toHaveCount(7);
+    const response = await request.post(url + '/play-again', { data: { accessToken: previous.accessToken } });
+    expect(response.status()).toBe(403);
+  } finally {
+    await newHost.context.close();
   }
 });

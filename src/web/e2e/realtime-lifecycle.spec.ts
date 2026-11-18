@@ -66,10 +66,6 @@ async function findPlayableDrawTwo(page: Page): Promise<number> {
   });
 }
 
-async function waitForTurnToMove(player: TestPlayer) {
-  await expect(player.page.getByRole('heading', { name: /^Waiting on / })).toBeVisible({ timeout: 15_000 });
-}
-
 test('a disconnected active player is timed out, then reconnects with the authoritative game state', async ({ browser, page }) => {
   const players = await startTwoPlayerGame(browser, page);
   try {
@@ -95,45 +91,14 @@ test('a disconnected active player is timed out, then reconnects with the author
 });
 
 test('a House Rules Draw Two penalty is automatically drawn and skipped when its recipient times out', async ({ browser, page }) => {
+  await page.setExtraHTTPHeaders({ 'X-Test-Deal': 'drawTwo' });
   const players = await startTwoPlayerGame(browser, page, 'house');
   try {
-    let penaltyRecipientIndex = -1;
-
-    // Find and play a legal +2 from a real shuffled hand. The fixture never
-    // reads the other player's hidden hand and never submits an illegal card.
-    for (let attempt = 0; attempt < 180; attempt++) {
-      const actorIndex = await currentTurnIndex(players);
-      const actor = players[actorIndex];
-      const handSize = await actor.page.locator('.hand-card').count();
-      const drawTwoIndex = handSize > 1 ? await findPlayableDrawTwo(actor.page) : -1;
-
-      if (drawTwoIndex >= 0) {
-        await actor.page.locator('.hand-card').nth(drawTwoIndex).click();
-        if (handSize === 2) {
-          const unoButton = actor.page.getByRole('button', { name: 'UNO!' });
-          await expect(unoButton).toBeEnabled();
-          await unoButton.click();
-        }
-
-        penaltyRecipientIndex = 1 - actorIndex;
-        await expect(players[penaltyRecipientIndex].page.getByText(/Draw penalty · 2 cards/)).toBeVisible();
-        break;
-      }
-
-      await actor.page.getByRole('button', { name: /Draw one card from the draw pile/ }).click();
-      await expect.poll(async () =>
-        (await actor.page.locator('.pass-decision').count()) > 0 ||
-        (await actor.page.getByRole('heading', { name: /^Waiting on / }).count()) > 0,
-      { timeout: 12_000 }).toBeTruthy();
-      if (await actor.page.locator('.pass-decision').count()) {
-        await actor.page.getByRole('button', { name: 'Pass' }).click();
-        await waitForTurnToMove(actor);
-      }
-    }
-
-    expect(penaltyRecipientIndex).toBeGreaterThanOrEqual(0);
-    const recipient = players[penaltyRecipientIndex];
-    const offender = players[1 - penaltyRecipientIndex];
+    const [offender, recipient] = players;
+    const drawTwoIndex = await findPlayableDrawTwo(offender.page);
+    expect(drawTwoIndex).toBeGreaterThanOrEqual(0);
+    await offender.page.locator('.hand-card').nth(drawTwoIndex).click();
+    await expect(recipient.page.getByText(/Draw penalty.*2 cards/)).toBeVisible();
     const originalHandSize = await recipient.page.locator('.hand-card').count();
 
     // Penalty timeout draws the accumulated amount, not the normal one-card

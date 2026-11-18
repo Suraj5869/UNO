@@ -9,7 +9,7 @@ namespace Uno.Api.Rooms;
 /// Room access tokens provide basic possession-based authorization until
 /// account authentication is added.
 /// </summary>
-public sealed class RoomStore
+public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, UnoGameRoom> _roomsByCode =
@@ -127,7 +127,7 @@ public sealed class RoomStore
                 throw new UnauthorizedAccessException("The room access token is invalid.");
             }
 
-            var game = room.StartGame(playerId);
+            var game = room.StartGame(playerId, dealRandom?.Invoke(room));
             if (_rematchCandidatesByRoomCode.Remove(room.Code, out var candidates))
             {
                 var revokedTokens = _tokensByRoomCode[room.Code]

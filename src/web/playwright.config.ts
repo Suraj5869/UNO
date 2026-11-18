@@ -25,18 +25,18 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'dotnet run --project ../backend/Uno.Api/Uno.Api.csproj --no-launch-profile --urls http://localhost:7137',
+      command: 'dotnet run --project ../../tests/Uno.BrowserHost/Uno.BrowserHost.csproj --no-launch-profile --urls http://localhost:7137',
       url: backendUrl + '/swagger/index.html',
       cwd: process.cwd(),
       env: { ASPNETCORE_ENVIRONMENT: 'Development' },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
     {
       command: 'npm run dev -- --host 0.0.0.0',
       env: { VITE_API_URL: backendUrl, VITE_SIGNALR_URL: backendUrl + '/hubs/uno-room' },
       url: frontendUrl,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 60_000,
     },
   ],

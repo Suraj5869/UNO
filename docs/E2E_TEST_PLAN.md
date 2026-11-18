@@ -14,23 +14,15 @@ Verify the complete player journey through the real web client, REST API, Signal
 - Never inspect another player's hidden hand; verify only that a player's own hand is visible and opponent card counts are exposed.
 - Keep random card distribution out of assertions unless the test is specifically about randomness. Add a test-only deterministic scenario mechanism only when gameplay E2E coverage requires controlled hands; it must be unavailable in production.
 
-## Coverage matrix
+## Current coverage
 
-| Area | Scenarios | Status |
-|---|---|---|
-| Room creation | Valid room, capacities 2–10, invalid capacity, invalid display name | Engine-level tests exist; browser coverage pending |
-| Room joining | Valid code, unknown code, full room, game already started, invalid display name | Unknown-room and full-room browser scenarios exist; joining after start scenario added; execution pending |
-| Multiplayer capacity | 2, 5 and 10 independent players; eleventh player rejected | 10-player browser scenario added; not yet executed |
-| Host permissions | Non-host cannot change rules/start; creator departure promotes next host | Browser scenarios added for direct API authorization and host promotion; execution pending |
-| Player departure | Lobby departure, non-current player departure, current player departure, consecutive departures, fewer than two players | Engine coverage exists for current-player departure; 10-player current-player departure browser scenario added; not yet executed |
-| Game actions | Number, Skip, Reverse, Draw Two, Wild, Wild Draw Four, draw, pass | Number/draw/pass and special-card browser scenarios added; special-card suite not yet executed |
-| Rule sets | Official vs House stacking and Wild Draw Four challenge behavior | Browser scenarios added for House Draw Two penalty/conditional stacking and Wild Draw Four accept/challenge; guaranteed deterministic stack/challenge variants pending |
-| UNO | Call window, missed UNO, catch penalty, expired window | Multi-client browser scenarios added for successful call, late-call rejection, catch-button gating, non-current-player catch, and +2 penalty; execution pending |
-| Timeout | Normal timeout, pending Draw Two penalty timeout, client countdown synchronization | Browser scenarios added; execution pending |
-| Realtime | Multiple clients receive updates, duplicate/stale actions, reconnect and rejoin | Reconnect-after-timeout browser scenario added; execution pending |
-| Privacy/security | Token authorization, unauthorized host actions, own-hand-only game state, stale token after leave | Some server-side protections exist; API/SignalR security E2E pending |
-| Rematch | Winner screen, independent opt-in, host promotion, returning players, revoked stale tokens | Full match completion and two-player Play Again browser scenario added; execution pending |
-| Responsive UI | Desktop and mobile layouts at 2, 4, 6 and 10 players | Manual verification pending |
+- Independent players create and join rooms, enforce capacity and host permissions, and leave during matches. Capacity tests exercise 2, 4, 5, 6 and 10 seats with phone and short desktop Chromium viewports.
+- A dedicated host in `tests/Uno.BrowserHost` runs the API with reproducible opening deals for UNO, rematch, special cards and penalty timeout. Production starts with the normal shuffle. Players submit every move through the ordinary APIs.
+- Special-card tests cover Skip, Reverse, Wild color choice, Wild Draw Four acceptance and both challenge outcomes, and an actual House Draw Two stack followed by payment.
+- UNO scenarios cover on-time call, late rejection, grace-period gating, missed-call catch and the penalty. Rematch completes a two-player game and checks that the former guest can become host, wait for the former host and start again.
+- Network tests cover token isolation, revoked credentials on reconnect, private broadcasts, two submissions for one turn and competing requests for the last seat across concurrent rooms.
+- Engine tests cover discard recycling for each supported seat count, card conservation throughout a ten-player match, and duplicate timeout processing. The browser lifecycle tests exercise real server deadlines.
+- Physical devices, engine/browser combinations beyond Chromium, production load, and the known deadline and departure defects in PROJECT_STATUS.md remain follow-up work.
 
 ## First browser acceptance scenario
 
@@ -69,19 +61,3 @@ Playwright retains traces, screenshots and video on failure. GitHub Actions uplo
 7. Desktop/mobile viewport coverage and repeated-run stability.
 
 Do not call the E2E suite comprehensive or deployment-ready until the full matrix has been implemented and the complete suite has passed repeatedly in CI.
-
-
-## Completion, rematch, reconnect and timeout coverage
-
-- `match-rematch.spec.ts` progresses a real two-player shuffled match using legal number-card plays and draws. It nominates the first player to reach one card as the intended winner, calls UNO, prevents the other participant from playing a final card during fixture setup, and verifies the winner overlay on both clients.
-- The rematch browser flow verifies that the first player to opt in becomes the new lobby host, the non-opted participant remains on the completed screen, the second participant can independently join, and the new host can start a fresh seven-card game.
-- `realtime-lifecycle.spec.ts` takes the active player's browser context offline, verifies the server-enforced 30-second timeout advances the turn and draws one card, then restores connectivity and verifies the client rejoins and refreshes its player-specific state.
-- A second lifecycle scenario plays a legal House Rules Draw Two, leaves its recipient idle, and verifies timeout draws the full two-card penalty and skips that turn.
-- These scenarios are implemented but are not yet confirmed green locally or in GitHub Actions. The UNO fixture was also corrected to avoid playing a final card and accidentally completing the match before the intended UNO assertions.
-
-
-## Room permissions and lifecycle browser coverage
-
-- `room-permissions.spec.ts` verifies that non-host controls are disabled and that direct rule-change/start API requests using a non-host token are rejected.
-- It also verifies that a lobby creator leaving promotes the remaining participant, that the promoted host can start after a new participant joins, that joining an already-started match is rejected, and that the room API rejects an 11-player capacity.
-- The room-permissions suite is implemented but has not yet been run. The full Playwright suite must pass before this coverage is considered complete.

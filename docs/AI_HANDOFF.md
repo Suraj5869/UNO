@@ -95,3 +95,11 @@ The latest browser additions cover UNO call/catch, full match completion and rem
 
 
 - Added `room-permissions.spec.ts` and `npm run test:e2e:rooms` for host-only rule/start authorization, creator departure and host promotion, post-start join rejection, and invalid room capacity. Run this suite with the other focused tests before treating the E2E rollout as green.
+
+## Review handoff on 2026-11-18
+
+Read [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the current baseline and proposed implementation order. Wait for implementation-plan approval before changing application code. Work from the local checkout and commit each completed task locally and get explicit authorization before pushing. Use isolated Playwright output to preserve the existing tracked failure artifacts.
+
+## Verified test implementation on 2026-11-18
+
+Both builds passed, all 77 backend cases passed and all 28 Playwright scenarios passed serially with zero retries in 3.7 minutes. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the test host, commands, coverage and remaining gameplay defects. The next proposed task is the final-card House Draw Two completion bug and its regression test.

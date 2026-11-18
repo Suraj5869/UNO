@@ -141,3 +141,11 @@ Pull the latest `main`; run the .NET build and unit tests, web production build,
 - The match/rematch suite now explicitly asserts that the first player to opt in is shown as HOST to both clients.
 - Remaining planned automated/manual coverage after these additions: hidden-hand privacy verification at the realtime/API boundary, draw-pile exhaustion and card-conservation invariants, concurrent action races, and responsive desktop/mobile viewports.
 - All recently added browser scenarios remain unverified until the user runs the full suite or GitHub Actions reports a successful E2E job.
+
+## Local review on 2026-11-18
+
+See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the current local verification results, remaining features and multiplayer findings. Both builds passed and all 66 backend unit tests passed at local revision `c9f1cb6`. The review found departure and deadline edge cases that need regression coverage.
+
+## Verified test implementation on 2026-11-18
+
+Both builds passed, all 77 backend cases passed and all 28 Playwright scenarios passed serially with zero retries in 3.7 minutes. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the test host, commands, coverage and remaining gameplay defects. The next proposed task is the final-card House Draw Two completion bug and its regression test.

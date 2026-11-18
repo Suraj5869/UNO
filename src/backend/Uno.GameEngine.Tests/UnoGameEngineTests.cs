@@ -4,6 +4,94 @@ namespace Uno.GameEngine.Tests;
 
 public sealed class UnoGameEngineTests
 {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    public void DrawCard_WithEmptyPile_RecyclesDiscardsAndConservesDeck(int seats)
+    {
+        var game = UnoGameFactory.CreateGame(
+            Enumerable.Range(1, seats).Select(i => $"Player {i}").ToArray(), new Random(17));
+        var expected = AllCards(game);
+        var top = game.TopDiscard;
+        game.MutableDiscardPile.InsertRange(0, game.DrawPile);
+        game.MutableDrawPile.Clear();
+        var recycledCount = game.DiscardPile.Count - 1;
+
+        new UnoGameEngine().DrawCard(game, game.CurrentPlayer.Id);
+
+        Assert.Same(top, Assert.Single(game.DiscardPile));
+        Assert.Equal(recycledCount - 1, game.DrawPile.Count);
+        Assert.Equal(expected, AllCards(game));
+    }
+
+    [Fact]
+    public void TenPlayerMatch_ConservesCardsUntilOnePlayerWins()
+    {
+        var names = Enumerable.Range(1, 10).Select(i => $"Player {i}").ToArray();
+        var game = UnoGameFactory.CreateGame(names, new Random(42));
+        var engine = new UnoGameEngine(new Random(21));
+        var expected = AllCards(game);
+
+        for (var turn = 0; turn < 1000 && game.Status == GameStatus.InProgress; turn++)
+        {
+            var actor = game.CurrentPlayer;
+            if (game.IsWildDrawFourChallengePending)
+            {
+                engine.AcceptWildDrawFour(game, actor.Id);
+            }
+            else
+            {
+                var card = actor.Hand.FirstOrDefault(card =>
+                    card.Color == CardColor.None || card.Color == game.ActiveColor ||
+                    (card.Type == game.TopDiscard.Type && card.Number == game.TopDiscard.Number));
+                if (card is null)
+                {
+                    engine.DrawCard(game, actor.Id);
+                    if (game.CanPassAfterDraw) engine.PassAfterDraw(game, actor.Id);
+                }
+                else
+                {
+                    engine.PlayCard(game, actor.Id, card,
+                        card.Color == CardColor.None ? CardColor.Blue : CardColor.None);
+                    if (game.PlayerAwaitingUnoCallId == actor.Id) engine.CallUno(game, actor.Id);
+                }
+            }
+
+            Assert.Equal(expected, AllCards(game));
+        }
+
+        Assert.Equal(GameStatus.Completed, game.Status);
+        Assert.Single(game.Players, player => player.Hand.Count == 0);
+    }
+
+    private static string[] AllCards(UnoGameState game) =>
+        game.Players.SelectMany(player => player.Hand)
+            .Concat(game.DrawPile).Concat(game.DiscardPile)
+            .Select(card => $"{card.Color}/{card.Type}/{card.Number}").Order().ToArray();
+
+    [Fact]
+    public void AutoResolveTimedOutTurn_DuplicateTickOnlyAdvancesOnce()
+    {
+        var game = UnoGameFactory.CreateGame(["Alice", "Bob"], new Random(23));
+        var engine = new UnoGameEngine();
+        var deadline = DateTimeOffset.UtcNow;
+        game.TurnDeadlineUtc = deadline;
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline.AddTicks(-1)));
+        Assert.True(engine.AutoResolveTimedOutTurn(game, deadline));
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline));
+        // A delayed submission from the timed-out seat must not draw a second card.
+        Assert.Throws<InvalidOperationException>(() => engine.DrawCard(game, game.Players[0].Id));
+        Assert.Equal(8, game.Players[0].Hand.Count);
+        Assert.Equal(game.Players[1].Id, game.CurrentPlayer.Id);
+    }
+
     [Fact]
     public void CreateGame_WithoutRuleSelection_UsesOfficialRules()
     {

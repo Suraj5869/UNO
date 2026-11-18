@@ -30,3 +30,13 @@ Reason: Prefer simple modular boundaries and dependency injection; avoid adding 
 ## D-007: Portable AI project memory
 Status: Accepted.
 Reason: Keep source code in GitHub and project context in version-controlled docs, including progress and handoff.
+
+## Open decisions from the 2026-11-18 review
+
+- Define how to return a departing player's cards to play and who resolves an outstanding penalty when the active player or Wild Draw Four offender leaves.
+- Confirm the Classic opening-action-card behavior and keep the prototype's turn timer and UNO grace interval explicitly documented.
+- See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for evidence and the proposed implementation order.
+
+## Browser test host
+
+Playwright starts a separate executable that composes the same REST API, SignalR hub and game engine and injects a per-game shuffle source. Only that executable interprets fixture selection. The production API uses the default shuffle.
