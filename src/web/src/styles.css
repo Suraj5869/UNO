@@ -514,3 +514,15 @@ body:has(.game-layout) .batch4-board .hand-card:not(:disabled):hover,body:has(.g
 @media(min-width:1000px) and (min-height:650px){body:has(.game-layout) .gameplay-shell .batch4-board .table-felt{flex:1;min-height:0;height:auto}}
 @media(max-width:999px),(max-height:649px){body:has(.game-layout) .batch4-board .table-felt{height:auto;min-height:calc(100dvh - 110px);grid-template-rows:minmax(110px,auto) minmax(180px,1fr) auto}.batch4-board .arena-table{inset:12% 3% 25%}}
 @media(max-width:600px){.batch4-board{--hand-width:54px;--pile-width:64px}body:has(.game-layout) .batch4-board .opponents{flex-wrap:wrap;gap:6px}body:has(.game-layout) .batch4-board .opponents .opponent:nth-child(n){flex:0 0 58px}.batch4-board .my-seat-label{grid-template-columns:1fr auto;gap:6px}.batch4-board .my-seat-identity{grid-column:1;justify-self:start}.batch4-board .uno-call-button{grid-column:2;margin:0;min-width:70px}.batch4-board .arena-table{inset:18% 1% 28%}}
+
+/* Arena grid: every live zone spans the same full-width column. */
+body:has(.game-layout) .batch4-board .table-felt{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(110px,1fr) minmax(165px,1.65fr) auto;justify-items:stretch}
+body:has(.game-layout) .batch4-board .table-felt>.opponents,body:has(.game-layout) .batch4-board .table-felt>.center-piles,body:has(.game-layout) .batch4-board .table-felt>.my-seat{grid-column:1;justify-self:stretch;width:100%;min-width:0}
+body:has(.game-layout) .batch4-board .table-felt>.arena-table{position:absolute;grid-area:auto;inset:12% 10% 27%}
+body:has(.game-layout) .batch4-board .center-piles{gap:clamp(18px,3vw,48px)}
+body:has(.game-layout) .batch4-board .hand-cards{gap:0;height:calc(var(--hand-height) + 52px);min-height:calc(var(--hand-height) + 52px);padding:18px 24px 24px}
+body:has(.game-layout) .batch4-board .hand-card{margin-left:clamp(-26px,calc(var(--hand-size,1) * -2px),-5px);transform:translateY(calc(var(--fan) * var(--fan) * .55px)) rotate(calc(var(--fan) * 2deg))}
+body:has(.game-layout) .batch4-board .hand-card:first-child{margin-left:0}
+.batch4-board .top-card,.batch4-board .draw-pile-button .card-back{box-shadow:0 2px 0 #efeee4,0 4px 0 #a7aaa6,0 6px 0 #d8d9d2,0 8px 0 #949995,0 10px 0 #c6c9c0,0 12px 0 #8e938e,0 14px 0 #b7bcb5,0 16px 0 #777e79,0 22px 14px #0008}
+.batch4-board .hand-card{box-shadow:0 2px 0 #c8c6ba,0 3px 0 #858782,0 6px 9px #0007,inset 0 0 0 2px #ffffff40}
+@media(max-width:600px){body:has(.game-layout) .batch4-board .table-felt>.arena-table{inset:18% 2% 28%}}
