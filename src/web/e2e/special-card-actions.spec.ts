@@ -178,6 +178,11 @@ test('Reverse changes direction and sends play to the previous player', async ({
     for (const player of players) {
       await expect(player.page.locator('.direction-count strong')).toHaveText(expectedDirection);
     }
+
+    await players[reverseNextIndex].page.getByRole('button', { name: 'Leave room' }).click();
+    const successor = players.find((_, index) => index !== reverseNextIndex && index !== result.actorIndex)!;
+    await expect(successor.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[result.actorIndex].page.getByRole('heading', { name: 'Waiting on ' + successor.name })).toBeVisible();
   } finally {
     await closePlayers(players);
   }

@@ -2,6 +2,10 @@
 
 Reviewed 2026-11-18 on local `main` at `c9f1cb6`. The branch was three commits ahead of its local `origin/main` reference. Existing modified Playwright artifacts were preserved.
 
+## Multiplayer departures
+
+When the active player leaves, the turn moves to the next remaining player in the current direction and starts a new deadline. An inactive player leaving preserves the active player's deadline and their play-or-pass decision after a draw. The next gameplay task is enforcing the deadline for actions received before the timeout poll runs.
+
 ## Number-only finish
 
 The server and web client now require a number card to go out in either Classic preset. A final Draw Two cannot create or extend a penalty. Verification: 90 backend tests and 29 Chromium scenarios passed, with zero Playwright retries in 4.2 minutes. The web production build passed.
@@ -13,7 +17,7 @@ Local verification on 2026-11-18: `dotnet build src/backend/Uno.sln --no-restore
 - The two previously failing browser flows now use controlled opening deals through a dedicated test executable. The real web client, REST endpoints, SignalR groups, server deadlines and engine process the moves.
 - Engine coverage includes discard recycling at every table size from 2 through 10, a complete ten-player match with card conservation checked each turn, and duplicate/stale actions after timeout.
 - Browser coverage exercises 2, 4, 5, 6 and 10 seats at 390 by 844 and 1280 by 720 pixels. Direct network tests cover personal snapshots, public draws, room-token boundaries, contested seats and simultaneous plays.
-- Gameplay fixes for departure during reverse play and actions received after the deadline but before the timeout poll remain pending. Production load, physical devices and additional browser engines remain unverified.
+- Actions received after the deadline but before the timeout poll remain a pending gameplay fix. Production load, physical devices and additional browser engines remain unverified.
 
 The sections below retain the original audit baseline.
 

@@ -45,6 +45,10 @@ Playwright starts a separate executable that composes the same REST API, SignalR
 
 A player can go out only by playing a legal number card. With one card in hand, Skip, Reverse, Draw Two, Wild and Wild Draw Four cannot be played, including onto a House Rules stack. The player can draw on a normal turn or resolve an outstanding penalty using the usual choices.
 
+## Turn handling on departure
+
+When the active player leaves, the turn moves to the next remaining player in the current direction and starts a new deadline. An inactive player leaving preserves the active player's deadline and their play-or-pass decision after a draw.
+
 
 ## P0 gameplay stabilization — implemented, verification pending
 

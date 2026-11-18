@@ -154,6 +154,11 @@ Both builds passed, all 77 backend cases passed and all 28 Playwright scenarios 
 
 Both Classic presets reject a last-card action before applying its effects. The client disables that card and explains the rule. Remaining gameplay follow-up includes reverse-direction departures and turn-deadline enforcement.
 
+## Turn handling on departure
+
+When the active player leaves, the turn moves to the next remaining player in the current direction and starts a new deadline. An inactive player leaving preserves the active player's deadline and their play-or-pass decision after a draw.
+Local verification passed all 95 backend tests and all 29 Chromium scenarios. Playwright ran serially with zero retries in 3.9 minutes.
+
 
 ## P0 gameplay stabilization — implemented, verification pending
 

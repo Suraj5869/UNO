@@ -184,6 +184,51 @@ public sealed class UnoGameRoomTests
         Assert.Equal(2, game.Players.Count);
     }
 
+    [Theory]
+    [InlineData(0, 3)]
+    [InlineData(2, 1)]
+    [InlineData(3, 2)]
+    public void Leave_ActiveSeatDuringReverse_PassesTurnToPreviousSeat(int active, int next)
+    {
+        var room = new UnoGameRoom("Alice");
+        foreach (var name in new[] { "Bob", "Charlie", "Dana" }) room.Join(name);
+        var game = room.StartGame(room.CreatorPlayerId, new Random(12));
+        game.TurnDirection = -1;
+        game.CurrentPlayerIndex = active;
+        var successor = game.Players[next];
+        game.JustDrawnCard = game.CurrentPlayer.Hand[0];
+        game.TurnDeadlineUtc = DateTimeOffset.UnixEpoch;
+
+        Assert.True(room.Leave(room.Players[active].Id));
+
+        Assert.Same(successor, game.CurrentPlayer);
+        Assert.False(game.CanPassAfterDraw);
+        Assert.True(game.TurnDeadlineUtc > DateTimeOffset.UnixEpoch);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Leave_InactiveSeat_PreservesActiveTurnAfterDraw(int leaving)
+    {
+        var room = new UnoGameRoom("Alice");
+        room.Join("Bob");
+        room.Join("Charlie");
+        var game = room.StartGame(room.CreatorPlayerId, new Random(12));
+        game.CurrentPlayerIndex = 1;
+        var active = game.CurrentPlayer;
+        var drawn = active.Hand[0];
+        game.JustDrawnCard = drawn;
+        var deadline = game.TurnDeadlineUtc;
+
+        Assert.True(room.Leave(room.Players[leaving].Id));
+
+        Assert.Same(active, game.CurrentPlayer);
+        Assert.Same(drawn, game.JustDrawnCardForCurrentPlayer);
+        Assert.Equal(deadline, game.TurnDeadlineUtc);
+        new UnoGameEngine().PassAfterDraw(game, active.Id);
+    }
+
     [Fact]
     public void Leave_RoomCreator_PromotesAnotherPlayer()
     {

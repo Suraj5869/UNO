@@ -209,6 +209,7 @@ public sealed class UnoGameEngine
             game.JustDrawnCard = null;
             game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(UnoGameState.TurnDuration);
         }
+
         return true;
     }
 

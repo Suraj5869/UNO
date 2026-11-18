@@ -27,3 +27,11 @@ TestResults/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+# Playwright generated artifacts
+**/test-results/
+**/playwright-report/
+**/playwright/.cache/
+**/blob-report/
+
+# TypeScript build cache
+*.tsbuildinfo
