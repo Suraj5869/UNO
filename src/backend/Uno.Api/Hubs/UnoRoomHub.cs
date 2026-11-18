@@ -191,7 +191,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             action(room, playerId);
-            return actionEventFactory?.Invoke(playerId);
+            var payload = actionEventFactory?.Invoke(playerId);
+            return payload is null ? null : publisher.CaptureGameAction(code, payload);
         });
 
         if (gameAction is not null)
