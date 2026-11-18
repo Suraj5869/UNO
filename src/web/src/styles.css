@@ -526,3 +526,10 @@ body:has(.game-layout) .batch4-board .hand-card:first-child{margin-left:0}
 .batch4-board .top-card,.batch4-board .draw-pile-button .card-back{box-shadow:0 2px 0 #efeee4,0 4px 0 #a7aaa6,0 6px 0 #d8d9d2,0 8px 0 #949995,0 10px 0 #c6c9c0,0 12px 0 #8e938e,0 14px 0 #b7bcb5,0 16px 0 #777e79,0 22px 14px #0008}
 .batch4-board .hand-card{box-shadow:0 2px 0 #c8c6ba,0 3px 0 #858782,0 6px 9px #0007,inset 0 0 0 2px #ffffff40}
 @media(max-width:600px){body:has(.game-layout) .batch4-board .table-felt>.arena-table{inset:18% 2% 28%}}
+
+/* Physical card perspective: decks lie on felt; hand leans toward viewer. */
+.batch4-board .center-piles{perspective:850px}
+body:has(.game-layout) .batch4-board .top-card,body:has(.game-layout) .batch4-board .draw-pile-button .card-back{transform:perspective(650px) rotateX(27deg);transform-origin:center center;box-shadow:0 3px 0 #f2f0e6,0 6px 0 #b5b8b0,0 9px 0 #e0e0d5,0 12px 0 #a1a69f,0 15px 0 #c5c8bf,0 18px 0 #878e87,0 21px 0 #a4a9a1,0 24px 0 #737b74,0 31px 17px #0008}
+body:has(.game-layout) .batch4-board .hand-card{transform:perspective(700px) translateY(calc(var(--fan,0) * var(--fan,0) * .55px)) rotateZ(calc(var(--fan,0) * 2.5deg)) rotateX(15deg);transform-origin:center 85%;box-shadow:0 2px 0 #e2dfd2,0 4px 0 #999c94,0 8px 10px #0008,inset 0 0 0 2px #ffffff35}
+body:has(.game-layout) .batch4-board .hand-card:not(:disabled):hover,body:has(.game-layout) .batch4-board .hand-card:focus-visible{transform:perspective(700px) translateY(-12px) rotateZ(calc(var(--fan,0) * 1.5deg)) rotateX(5deg);z-index:8}
+@media(prefers-reduced-motion:reduce){.batch4-board .hand-card{transition:none}}
