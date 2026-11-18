@@ -14,17 +14,17 @@ public sealed class UnoTurnTimeoutService(RoomStore roomStore, RoomRealtimePubli
                     var timeoutAction = roomStore.ExecuteLocked(code, room =>
                     {
                         var game = room.Game;
-                        if (game is null) return (Resolved: false, Action: (GameActionPayload?)null);
+                        if (game is null) return (Resolved: false, Action: (GameActionEvent?)null);
 
                         var currentGamePlayerId = game.CurrentPlayer.Id;
                         var before = game.CurrentPlayer.Hand.Count;
                         if (!new UnoGameEngine().AutoResolveTimedOutTurn(game, DateTimeOffset.UtcNow))
-                            return (Resolved: false, Action: (GameActionPayload?)null);
+                            return (Resolved: false, Action: (GameActionEvent?)null);
 
                         var drawCount = game.Players.First(player => player.Id == currentGamePlayerId).Hand.Count - before;
-                        if (drawCount == 0) return (Resolved: true, Action: (GameActionPayload?)null);
+                        if (drawCount == 0) return (Resolved: true, Action: (GameActionEvent?)null);
                         var roomPlayerId = room.Players.First(player => player.GamePlayerId == currentGamePlayerId).Id;
-                        return (Resolved: true, Action: (GameActionPayload?)new GameActionPayload("CardsDrawn", roomPlayerId, null, drawCount));
+                        return (Resolved: true, Action: (GameActionEvent?)publisher.CaptureGameAction(code, new GameActionPayload("CardsDrawn", roomPlayerId, null, drawCount)));
                     });
                     if (timeoutAction.Resolved)
                     {
