@@ -244,3 +244,10 @@ body:has(.room-heading) .hand-card{flex:0 0 auto}
   body:has(.game-layout) .center-piles{top:37%;transform:translate(-50%,-50%) scale(.82)}
   body:has(.game-layout) .my-seat{height:33%;min-height:190px}
 }
+
+/* Playful Premium: initial navigation theme; gameplay card artwork unchanged. */
+.app-shell:has(.landing){--accent:#ffc83d;--muted:#d5d6f4;background:radial-gradient(ellipse at 15% 10%,#5153c4,transparent 65%),#292a83}
+.landing .entry-card{background:#35378f;border-color:#7779cf;border-radius:28px;box-shadow:0 24px 60px #13144766}
+.landing .hero-copy>p,.landing .mini-label,.landing .field-label{color:#e1e1fa}
+.landing input,.landing select{background:#24266c;border-color:#7779cf}
+.mode-menu{display:grid;gap:14px;margin-top:24px}.mode-tile{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;border:0;border-radius:18px;padding:20px;box-shadow:0 5px 0 #0003;transition:transform .15s;min-height:92px}.mode-tile:not(:disabled):hover{transform:translateY(-2px)}.mode-tile strong{font-size:22px}.mode-tile small{font-size:13px}.mode-match{background:#ffc83d;color:#292a83}.mode-friends{background:#24bd98;color:#103e39}.mode-bots{background:#ff626b;color:#47212b}.mode-bots:disabled{opacity:.75}.quick-search{text-align:center;padding:48px 24px}.quick-search p{color:var(--muted);margin-bottom:24px}
