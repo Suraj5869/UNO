@@ -16,6 +16,9 @@ public sealed record RegisterRequest([Required, EmailAddress, MaxLength(254)] st
     [Required, StringLength(128, MinimumLength = 8)] string Password);
 public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, [Required, MaxLength(128)] string Password);
 public sealed record RefreshRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string RefreshToken);
+public sealed record ProfileUpdateRequest([Required, StringLength(24, MinimumLength = 1)] string DisplayName);
+public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey);
+public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped);
 public sealed record AccountIdentity(Guid Id);
 public sealed record AccountRow(Guid Id, string PasswordHash);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
@@ -135,6 +138,36 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         await using var connection = await source.OpenConnectionAsync(ct);
         var profile = await connection.QuerySingleOrDefaultAsync<PlayerProfile>(new CommandDefinition(ProfileSql,new { Id=id }, cancellationToken:ct));
         return profile is null ? NotFound() : Ok(profile);
+    }
+
+    [Authorize]
+    [HttpPut("me")]
+    public async Task<IActionResult> UpdateProfile(ProfileUpdateRequest request, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
+        if (Source is not {} source) return StatusCode(503);
+        var display = request.DisplayName.Trim();
+        if (display.Length == 0) return BadRequest(new { message = "Display name is required." });
+        await using var connection = await source.OpenConnectionAsync(ct);
+        await connection.ExecuteAsync(new CommandDefinition("update uno.player_profiles set display_name=@Display where user_id=@Id", new { Id=id, Display=display }, cancellationToken:ct));
+        return await Me(ct);
+    }
+
+    [Authorize]
+    [HttpGet("collection")]
+    public async Task<IActionResult> Collection(CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
+        if (Source is not {} source) return StatusCode(503);
+        await using var connection = await source.OpenConnectionAsync(ct);
+        return Ok(await connection.QueryAsync<CosmeticView>(new CommandDefinition("""
+            select c.item_key as ItemKey,c.category,c.display_name as DisplayName,
+              (i.item_id is not null) as Owned,(l.item_id is not null) as Equipped
+            from uno.cosmetic_items c
+            left join uno.player_inventory i on i.item_id=c.id and i.user_id=@Id
+            left join uno.player_loadouts l on l.item_id=c.id and l.user_id=@Id
+            where c.is_active order by c.category,c.item_key
+            """, new { Id=id }, cancellationToken:ct)));
     }
 
     private static async Task<AuthResponse> Issue(NpgsqlConnection connection, NpgsqlTransaction tx, JwtSettings jwt, Guid id, CancellationToken ct)
