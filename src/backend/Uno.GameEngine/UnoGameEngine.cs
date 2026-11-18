@@ -333,23 +333,23 @@ public sealed class UnoGameEngine
 
         if (challengeSucceeded)
         {
-            DrawCards(game, penaltyAmount, offenderIndex);
+            var actualDrawCount = DrawCards(game, penaltyAmount, offenderIndex).Count;
             // The challenger keeps the turn after a successful challenge.
-            return new WildDrawFourChallengeResult(game.Players[offenderIndex].Id, penaltyAmount);
+            return new WildDrawFourChallengeResult(game.Players[offenderIndex].Id, actualDrawCount);
         }
 
         // A failed challenge adds the standard two-card challenge penalty
         // on top of any accumulated Wild Draw Four stack.
         var failedChallengePenalty = penaltyAmount + 2;
-        DrawCards(game, failedChallengePenalty);
+        var actualFailedDrawCount = DrawCards(game, failedChallengePenalty).Count;
         if (offenderHadNoCards)
         {
             game.Status = GameStatus.Completed;
-            return new WildDrawFourChallengeResult(playerId, failedChallengePenalty);
+            return new WildDrawFourChallengeResult(playerId, actualFailedDrawCount);
         }
 
         AdvanceTurn(game);
-        return new WildDrawFourChallengeResult(playerId, failedChallengePenalty);
+        return new WildDrawFourChallengeResult(playerId, actualFailedDrawCount);
     }
 
     /// <summary>
