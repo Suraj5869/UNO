@@ -1,3 +1,9 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+using Uno.Api.Authentication;
 using Npgsql;
 using Dapper;
 using Uno.Api.Hubs;
@@ -52,6 +58,48 @@ public static class UnoApi
         if (!string.IsNullOrWhiteSpace(connectionString))
             builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
 
+        builder.Services.AddSingleton<PasswordHasher<Guid>>();
+        var jwtKey = builder.Configuration["Jwt:SigningKey"];
+        var authentication = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
+        if (!string.IsNullOrWhiteSpace(jwtKey))
+        {
+            if (System.Text.Encoding.UTF8.GetByteCount(jwtKey) < 32)
+                throw new InvalidOperationException("Jwt:SigningKey must contain at least 32 bytes.");
+            var jwt = new JwtSettings(jwtKey);
+            builder.Services.AddSingleton(jwt);
+            authentication.AddJwtBearer(options =>
+            {
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true, ValidIssuer = JwtSettings.Issuer,
+                    ValidateAudience = true, ValidAudience = JwtSettings.Audience,
+                    ValidateIssuerSigningKey = true, IssuerSigningKey = jwt.SigningKey,
+                    ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(15),
+                    ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 }
+                };
+            });
+        }
+        else
+        {
+            authentication.AddJwtBearer(options =>
+            {
+                options.Events = new JwtBearerEvents { OnMessageReceived = context =>
+                {
+                    context.NoResult();
+                    return Task.CompletedTask;
+                }};
+            });
+        }
+        builder.Services.AddAuthorization();
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = 429;
+            options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        });
+
         configureServices?.Invoke(builder.Services);
         var app = builder.Build();
 
@@ -65,7 +113,9 @@ public static class UnoApi
 
         app.UseHttpsRedirection();
         app.UseCors("Frontend");
+        app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
 
         app.MapGet("/api/health/database", async (HttpContext context, CancellationToken cancellationToken) =>
         {
