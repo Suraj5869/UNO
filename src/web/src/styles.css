@@ -481,3 +481,36 @@ body:has(.game-layout) .batch4-board .hand-card:not(:disabled):hover,body:has(.g
 .batch4-board .draw-pile-button .card-back:after{content:"UNO";position:absolute;inset:0;display:grid;place-items:center;font:900 clamp(19px,3vw,35px) 'Fredoka',sans-serif;color:#ffcf32;transform:rotate(-25deg);text-shadow:2px 2px #68271a}
 @media(min-width:1000px) and (min-height:650px){body:has(.game-layout) .batch4-board .center-piles{top:43%}.batch4-board .my-seat-label{bottom:3px}}
 @media(max-width:600px){.batch4-board{--hand-width:54px}.batch4-board .arena-table{inset:27% 2% 19%}body:has(.game-layout) .batch4-board .hand-card{margin-left:clamp(-24px,calc(var(--hand-size,1) * -2px),-8px)}.batch4-board .uno-card b{font-size:22px}}
+
+/* Arena layout v3: independent tracks, never overlap live piles and hand. */
+body:has(.game-layout) .gameplay-shell .game-layout,body:has(.game-layout) .gameplay-shell .batch4-board{max-width:none;min-height:0;align-items:stretch;margin:0}
+body:has(.game-layout) .batch4-board .table-felt{display:grid;grid-template-rows:minmax(108px,1fr) minmax(150px,1.55fr) auto;gap:8px;padding:0 clamp(8px,3vw,48px) 8px;align-items:center;min-height:0;overflow:visible}
+.batch4-board{--hand-width:clamp(54px, min(7vw,11vh),100px);--hand-height:calc(var(--hand-width) * 1.45);--pile-width:clamp(65px, min(8vw,12vh),110px)}
+.batch4-board .arena-table{inset:9% 10% 24%;background:radial-gradient(ellipse at 48% 24%,#388e54,#1a6040 58%,#103928);border:clamp(12px,1.25vw,22px) solid #292c45;box-shadow:0 2px 0 2px #555a78,0 10px 0 2px #101226,0 22px 35px #0008,inset 0 5px 22px #0009}
+body:has(.game-layout) .batch4-board .opponents{grid-row:1;position:relative;inset:auto;width:100%;height:100%;display:flex;justify-content:center;align-items:center;gap:clamp(7px,2vw,30px);padding:5px 0;z-index:3}
+body:has(.game-layout) .batch4-board .opponents .opponent:nth-child(n){position:relative;inset:auto;transform:none;flex:0 1 115px;width:auto;min-width:0;align-self:center}
+.batch4-board .opponent .turn-avatar-frame{width:clamp(36px,6vh,62px);height:clamp(36px,6vh,62px);flex-basis:auto}
+body:has(.game-layout) .batch4-board .center-piles{grid-row:2;position:relative;inset:auto;transform:none;width:100%;height:auto;min-height:0;padding:0;gap:clamp(20px,4vw,65px);align-items:center;justify-content:center}
+.batch4-board .top-card-wrap,.batch4-board .draw-pile-button{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
+.batch4-board .top-card,.batch4-board .draw-pile-button .card-back{width:var(--pile-width);height:calc(var(--pile-width) * 1.43)}
+.batch4-board .direction-count{position:relative;inset:auto;margin:0;min-width:0}
+body:has(.game-layout) .batch4-board .my-seat{grid-row:3;position:relative;inset:auto;margin:0;padding:0;min-height:0;height:auto;display:flex;flex-direction:column;gap:0;justify-content:flex-start}
+body:has(.game-layout) .batch4-board .hand-cards{order:0;flex:none;height:calc(var(--hand-height) + 38px);min-height:calc(var(--hand-height) + 38px);padding:15px 12px 15px;margin:0;gap:clamp(3px,.5vw,9px);justify-content:safe center;overflow-x:auto;overflow-y:hidden}
+body:has(.game-layout) .batch4-board .hand-card{margin:0;transform:none;width:var(--hand-width);height:var(--hand-height);flex:0 0 var(--hand-width);transform-origin:center bottom}
+body:has(.game-layout) .batch4-board .hand-card:not(:disabled):hover,body:has(.game-layout) .batch4-board .hand-card:focus-visible{transform:translateY(-9px);z-index:8}
+.batch4-board .my-seat-label{order:1;position:relative;inset:auto;display:grid;grid-template-columns:1fr minmax(0,2fr) 1fr;align-items:center;min-height:70px;pointer-events:auto}
+.batch4-board .my-seat-identity{grid-column:2;justify-self:center;flex-direction:row;text-align:left;gap:10px}
+.batch4-board .uno-call-button{grid-column:3;position:relative;inset:auto;justify-self:end;min-width:90px;margin-right:12px}
+.batch4-board .uno-card.red{background:linear-gradient(145deg,#ff837e 0%,#e93643 33%,#b91d32 100%)}
+.batch4-board .uno-card.blue{background:linear-gradient(145deg,#8ab9ff 0%,#3877df 33%,#2049a9 100%)}
+.batch4-board .uno-card.green{background:linear-gradient(145deg,#80e2a5 0%,#33a95d 33%,#17683e 100%)}
+.batch4-board .uno-card.yellow{background:linear-gradient(145deg,#fff298 0%,#f6c63c 33%,#ce9016 100%)}
+.batch4-board .uno-card{border:3px solid #fff9e9;border-radius:12px;box-shadow:0 3px 0 #c2bcae,0 5px 0 #858782,0 9px 12px #0007,inset 0 0 0 2px #ffffff40,inset 0 -10px 18px #0003}
+.batch4-board .uno-card:before{inset:13% 9%;width:82%;height:74%;background:linear-gradient(145deg,#fff4,#fff0 55%,#0001);border:2px solid #fff9e9;box-shadow:inset 0 1px 5px #fff4}
+.batch4-board .uno-card b{font-size:clamp(20px,2.5vw,36px);letter-spacing:-1px;max-width:100%;text-shadow:0 2px 0 #0006,0 4px 5px #0005}
+.batch4-board .uno-card.wild b{font-size:clamp(15px,1.6vw,25px)}
+.batch4-board .hand-card b{font-size:clamp(17px,2vw,32px)}
+.batch4-board .decision-panel,.batch4-board .color-picker{bottom:100%;z-index:15}
+@media(min-width:1000px) and (min-height:650px){body:has(.game-layout) .gameplay-shell .batch4-board .table-felt{flex:1;min-height:0;height:auto}}
+@media(max-width:999px),(max-height:649px){body:has(.game-layout) .batch4-board .table-felt{height:auto;min-height:calc(100dvh - 110px);grid-template-rows:minmax(110px,auto) minmax(180px,1fr) auto}.batch4-board .arena-table{inset:12% 3% 25%}}
+@media(max-width:600px){.batch4-board{--hand-width:54px;--pile-width:64px}body:has(.game-layout) .batch4-board .opponents{flex-wrap:wrap;gap:6px}body:has(.game-layout) .batch4-board .opponents .opponent:nth-child(n){flex:0 0 58px}.batch4-board .my-seat-label{grid-template-columns:1fr auto;gap:6px}.batch4-board .my-seat-identity{grid-column:1;justify-self:start}.batch4-board .uno-call-button{grid-column:2;margin:0;min-width:70px}.batch4-board .arena-table{inset:18% 1% 28%}}
