@@ -24,7 +24,7 @@ export default function ProfileMenu({ player, logout, inRoom, onUpdate }: { play
     {open && <section id="player-profile-popup" className="profile-popup" aria-label="Player details">
       <div className="profile-popup-heading"><span className="profile-circle">{player.displayName.slice(0,1).toUpperCase()}</span><div><strong>{player.displayName}</strong><small>@{player.username}</small><small>Level {player.level}</small></div></div>
       <div className="profile-stats"><div><strong>{player.totalXp.toLocaleString()}</strong><small>XP</small></div><div><strong>{player.wins}</strong><small>Wins</small></div><div><strong>{player.matchesPlayed}</strong><small>Matches</small></div></div>
-      <button type="button" className="profile-signout" disabled={inRoom} onClick={() => { setOpen(false); setScreen(true); }}>Profile &amp; collections</button>
+      <button type="button" className="profile-signout profile-open-hub" disabled={inRoom} onClick={() => { setOpen(false); setScreen(true); }}>Profile &amp; collections</button>
       <button type="button" className="profile-signout" disabled={busy || inRoom} onClick={async () => { setBusy(true); try { await logout(); } catch { /* AuthGate clears the local session even if revocation fails. */ } finally { setBusy(false); } }}>{busy ? 'Signing out…' : 'Sign out'}</button>
       {inRoom && <small className="profile-note">Leave the room before signing out.</small>}
     </section>}
