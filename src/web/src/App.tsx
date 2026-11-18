@@ -7,11 +7,11 @@ const HUB = import.meta.env.VITE_SIGNALR_URL || API + '/hubs/uno-room';
 type RuleSet = 0 | 1;
 type Color = 0 | 1 | 2 | 3 | 4;
 interface Player { id: string; displayName: string; isCreator: boolean; gamePlayerId: string | null }
-interface Room { id: string; code: string; maximumPlayers: number; ruleSet: RuleSet; status: number; players: Player[]; gameStatus: number | null }
+interface Room { snapshotSequence: number; id: string; code: string; maximumPlayers: number; ruleSet: RuleSet; status: number; players: Player[]; gameStatus: number | null }
 interface Access { room: Room; playerId: string; accessToken: string }
 interface Card { color: Color; type: number; number: number | null }
 interface GamePlayer { playerId: string; displayName: string; cardCount: number; hand: Card[] | null }
-interface Game { roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
+interface Game { snapshotSequence: number; roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
 interface GameActionEvent { eventSequence: number; action: 'CardPlayed' | 'CardDrawn' | 'CardsDrawn'; playerId: string; card: Card | null; drawCount: number; drawTargetPlayerId: string | null; occurredAtUtc: string }
 
 const ruleName = (r: RuleSet) => r === 1 ? 'House Rules' : 'Official Rules';
@@ -47,6 +47,21 @@ export default function App() {
   const [gameAction, setGameAction] = useState<GameActionEvent | null>(null);
   const lastActionSequence = useRef(0);
   const completedGameRef = useRef(false);
+  const lastRoomSequence = useRef(0);
+  const lastGameSequence = useRef(0);
+  const acceptGame = useCallback((value: Game) => {
+    if (value.snapshotSequence <= lastGameSequence.current) return;
+    lastGameSequence.current = value.snapshotSequence;
+    completedGameRef.current = value.gameStatus === 1;
+    setGame(value);
+  }, []);
+  const acceptRoom = useCallback((value: Room) => {
+    if (value.snapshotSequence <= lastRoomSequence.current) return false;
+    lastRoomSequence.current = value.snapshotSequence;
+    if (value.status === 0) lastGameSequence.current = Math.max(lastGameSequence.current, value.snapshotSequence);
+    setRoom(value);
+    return true;
+  }, []);
 
   // Notifications clear automatically; errors stay visible a little longer.
   useEffect(() => {
@@ -65,6 +80,8 @@ export default function App() {
   }, []);
 
   const keepAccess = useCallback((value: Access) => {
+    lastRoomSequence.current = value.room.snapshotSequence;
+    if (value.room.status === 0) lastGameSequence.current = value.room.snapshotSequence;
     setAccess(value); setRoom(value.room); setRule(value.room.ruleSet);
     sessionStorage.setItem('uno-room-access', JSON.stringify(value));
   }, []);
@@ -101,7 +118,7 @@ export default function App() {
     if (!roomCode) return;
     try {
       const value = await api<Room>('/api/rooms/' + encodeURIComponent(roomCode));
-      setRoom(value);
+      if (!acceptRoom(value)) return;
       setAccess(old => {
         if (!old) return old;
         const next = { ...old, room: value };
@@ -109,7 +126,7 @@ export default function App() {
         return next;
       });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh room.'); }
-  }, [roomCode, api]);
+  }, [roomCode, api, acceptRoom]);
 
   useEffect(() => {
     if (!access) return;
@@ -118,7 +135,7 @@ export default function App() {
     const connection = new HubConnectionBuilder().withUrl(HUB).withAutomaticReconnect().configureLogging(LogLevel.Warning).build();
     connection.on('RoomUpdated', (value: Room) => {
       if (!active || completedGameRef.current) return;
-      setRoom(value);
+      if (!acceptRoom(value)) return;
       setAccess(old => {
         if (!old) return old;
         const next = { ...old, room: value };
@@ -126,7 +143,7 @@ export default function App() {
         return next;
       });
     });
-    connection.on('GameStateUpdated', (value: Game) => { if (active) { completedGameRef.current = value.gameStatus === 1; setGame(value); } });
+    connection.on('GameStateUpdated', (value: Game) => { if (active) { acceptGame(value); } });
     connection.on('GameAction', (event: GameActionEvent) => {
       if (!active || event.eventSequence <= lastActionSequence.current) return;
       lastActionSequence.current = event.eventSequence;
@@ -144,7 +161,7 @@ export default function App() {
       try {
         await connection.invoke('JoinRoom', access.room.code, access.accessToken);
         const value = await connection.invoke<Game>('GetGameState', access.room.code, access.accessToken).catch(() => null);
-        if (value && active) { completedGameRef.current = value.gameStatus === 1; setGame(value); }
+        if (value && active) { acceptGame(value); }
         if (active) setNotice('Reconnected to the room.');
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not rejoin room.'); }
     });
@@ -153,7 +170,7 @@ export default function App() {
       await connection.invoke('JoinRoom', access.room.code, access.accessToken);
       if (active) setHub(connection);
       const value = await connection.invoke<Game>('GetGameState', access.room.code, access.accessToken).catch(() => null);
-      if (value && active) { completedGameRef.current = value.gameStatus === 1; setGame(value); }
+      if (value && active) { acceptGame(value); }
       await refresh();
     }).catch(e => { if (active) setError('Realtime connection failed: ' + (e instanceof Error ? e.message : 'check API URL and HTTPS certificate')); });
     return () => { active = false; setHub(old => old === connection ? null : old); void connection.stop(); };
@@ -166,15 +183,12 @@ export default function App() {
     try {
       await hub.invoke(method, access.room.code, access.accessToken, ...args);
       if (method === 'CallUno') {
-        const announcement = (game?.players.find(player => player.playerId === game.viewerPlayerId)?.displayName || 'A player') + ' says UNO!';
-        setUnoAnnouncement(announcement);
-        setUnoAnimationKey(key => key + 1);
-        window.setTimeout(() => setUnoAnnouncement(current => current === announcement ? '' : current), 3200);
+        // The server broadcasts UnoCalled to the caller as well.
       }
     }
     catch (e) {
       setError(e instanceof Error ? e.message : 'That action was rejected.');
-      try { setGame(await hub.invoke<Game>('GetGameState', access.room.code, access.accessToken)); } catch { /* Keep original error. */ }
+      try { acceptGame(await hub.invoke<Game>('GetGameState', access.room.code, access.accessToken)); } catch { /* Keep original error. */ }
     }
   }, [access, hub, game]);
 
@@ -183,7 +197,7 @@ export default function App() {
     setBusy(true); setError('');
     try {
       const updated = await api<Room>('/api/rooms/' + encodeURIComponent(room.code) + '/rules', { method: 'PUT', body: JSON.stringify({ accessToken: access.accessToken, ruleSet: value }) });
-      setRoom(updated); setRule(value); setNotice('Rules set to ' + ruleName(value) + '.');
+      acceptRoom(updated); setRule(value); setNotice('Rules set to ' + ruleName(value) + '.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not change rules.'); }
     finally { setBusy(false); }
   };
@@ -193,7 +207,7 @@ export default function App() {
     setBusy(true); setError('');
     try {
       const updated = await api<Room>('/api/rooms/' + encodeURIComponent(access.room.code) + '/start', { method: 'POST', body: JSON.stringify({ accessToken: access.accessToken }) });
-      setRoom(updated); setNotice('Game started! Good luck.');
+      acceptRoom(updated); setNotice('Game started! Good luck.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not start the game.'); }
     finally { setBusy(false); }
   };
@@ -227,7 +241,7 @@ export default function App() {
     }
     await hub?.stop().catch(() => undefined);
     sessionStorage.removeItem('uno-room-access');
-    setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false;
+    setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false; lastRoomSequence.current = 0; lastGameSequence.current = 0;
     setError(leaveError);
     setNotice(leaveError ? '' : 'You left the room.');
   };
