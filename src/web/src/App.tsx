@@ -27,6 +27,8 @@ async function messageFor(response: Response) {
 
 export default function App() {
   const [name, setName] = useState('');
+  const [entryMode, setEntryMode] = useState<'home' | 'friends'>('home');
+  const [quickMatch, setQuickMatch] = useState(() => sessionStorage.getItem('uno-quick-match') === 'true');
   const [codeInput, setCodeInput] = useState('');
   const [capacity, setCapacity] = useState(4);
   const [rule, setRule] = useState<RuleSet>(0);
@@ -94,6 +96,17 @@ export default function App() {
       const value = await api<Access>('/api/rooms', { method: 'POST', body: JSON.stringify({ creatorDisplayName: name.trim(), maximumPlayers: capacity, ruleSet: rule }) });
       keepAccess(value); setNotice('Room ' + value.room.code + ' created. Share the code with your friends.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not create room.'); }
+    finally { setBusy(false); }
+  };
+
+  const findMatch = async () => {
+    if (!name.trim()) { setError('Enter a display name first.'); return; }
+    setBusy(true); setError('');
+    try {
+      const value = await api<Access>('/api/rooms/matchmaking', { method: 'POST', body: JSON.stringify({ displayName: name.trim() }) });
+      sessionStorage.setItem('uno-quick-match', 'true');
+      setQuickMatch(true); keepAccess(value);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not find a match.'); }
     finally { setBusy(false); }
   };
 
@@ -225,6 +238,7 @@ export default function App() {
       setGame(null);
       setWildIndex(null);
       setGameAction(null);
+      sessionStorage.removeItem('uno-quick-match'); setQuickMatch(false);
       setNotice('You are in the rematch lobby. Invite your friends or wait for them to join.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not prepare the rematch lobby.');
@@ -241,6 +255,7 @@ export default function App() {
     }
     await hub?.stop().catch(() => undefined);
     sessionStorage.removeItem('uno-room-access');
+    sessionStorage.removeItem('uno-quick-match'); setQuickMatch(false); setEntryMode('home');
     setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false; lastRoomSequence.current = 0; lastGameSequence.current = 0;
     setError(leaveError);
     setNotice(leaveError ? '' : 'You left the room.');
@@ -295,14 +310,18 @@ export default function App() {
     <header className="topbar"><a className="brand" href="#" onClick={e => e.preventDefault()}><span className="brand-mark">U</span><span>UNO<span className="brand-dot">.</span></span></a><div className="topbar-right"><span className={'connection-pill ' + (hub?.state === 'Connected' ? 'online' : '')}><i />{hub?.state === 'Connected' ? 'Live connection' : access ? 'Connecting' : 'Ready to play'}</span>{access && <button className="button button-quiet button-small" onClick={() => void leave()}>Leave room</button>}</div></header>
     <main className="main-content">
       {!access || !room ? <section className="landing">
-        <div className="hero-copy"><span className="eyebrow"><span /> CLASSIC UNO · PLAY WITH FRIENDS</span><h1>One deck.<br /><span>Endless</span> rematches.</h1><p>Create a private room, invite your friends with a short code, and let the server keep every turn fair.</p><div className="hero-stats"><div><strong>2–10</strong><span>players per room</span></div><div><strong>2 modes</strong><span>Official or House Rules</span></div><div><strong>Live</strong><span>multiplayer updates</span></div></div><div className="card-art" aria-hidden="true"><div className="art-card art-red"><b>7</b><span>UNO</span></div><div className="art-card art-blue"><b>↻</b><span>UNO</span></div><div className="art-card art-yellow"><b>+2</b><span>UNO</span></div><div className="art-card art-green"><b>5</b><span>UNO</span></div></div></div>
-        <div className="entry-card"><div className="entry-heading"><span className="mini-label">LET'S PLAY</span><h2>Game on.</h2><p>Use your name, then create a table or join one.</p></div><label className="field-label" htmlFor="display-name">Your display name</label><input id="display-name" value={name} onChange={e => setName(e.target.value)} maxLength={24} placeholder="e.g. CardShark" />
-          <form onSubmit={create} className="create-form"><div className="section-label"><span>CREATE A ROOM</span><span className="line" /></div><label className="field-label" htmlFor="capacity">Maximum players</label><select id="capacity" value={capacity} onChange={e => setCapacity(Number(e.target.value))}>{[2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} players</option>)}</select><label className="field-label" htmlFor="rules">Starting rules</label><select id="rules" value={rule} onChange={e => setRule(Number(e.target.value) as RuleSet)}><option value={0}>Official Rules — no stacking</option><option value={1}>House Rules — same-card stacking</option></select><button className="button button-primary button-wide" disabled={busy}>{busy ? 'Please wait…' : '＋ Create private room'}<span>→</span></button></form>
-          <form onSubmit={join} className="join-form"><div className="section-label"><span>OR JOIN FRIENDS</span><span className="line" /></div><div className="join-row"><input aria-label="Room code" value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} maxLength={6} placeholder="ROOM CODE" /><button className="button button-secondary" disabled={busy}>Join room</button></div></form>
+        <div className="hero-copy"><span className="eyebrow"><span /> CLASSIC UNO · EVERYONE CAN PLAY</span><h1>One deck.<br /><span>Endless</span> fun.</h1><p>Play online, challenge friends, and enjoy Classic UNO together.</p><div className="hero-stats"><div><strong>2–10</strong><span>players per room</span></div><div><strong>2 modes</strong><span>Official or House Rules</span></div><div><strong>Live</strong><span>multiplayer updates</span></div></div><div className="card-art" aria-hidden="true"><div className="art-card art-red"><b>7</b><span>UNO</span></div><div className="art-card art-blue"><b>↻</b><span>UNO</span></div><div className="art-card art-yellow"><b>+2</b><span>UNO</span></div><div className="art-card art-green"><b>5</b><span>UNO</span></div></div></div>
+        <div className="entry-card"><div className="entry-heading"><span className="mini-label">LET'S PLAY</span><h2>Game on.</h2><p>Choose how you want to play.</p></div><label className="field-label" htmlFor="display-name">Your display name</label><input id="display-name" value={name} onChange={e => setName(e.target.value)} maxLength={24} placeholder="e.g. CardShark" />
+          {entryMode === 'home' ? <div className="mode-menu">
+            <button className="mode-tile mode-match" disabled={busy} onClick={() => void findMatch()}><strong>Play Match</strong><small>Find a random online opponent</small></button>
+            <button className="mode-tile mode-friends" disabled={busy} onClick={() => setEntryMode('friends')}><strong>Play with Friends</strong><small>Create or join a private room</small></button>
+            <button className="mode-tile mode-bots" disabled><strong>Play vs Bots</strong><small>Coming soon</small></button>
+          </div> : <><button className="button button-quiet button-small" onClick={() => setEntryMode('home')}>← Back to home</button><form onSubmit={create} className="create-form"><div className="section-label"><span>CREATE A ROOM</span><span className="line" /></div><label className="field-label" htmlFor="capacity">Maximum players</label><select id="capacity" value={capacity} onChange={e => setCapacity(Number(e.target.value))}>{[2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} players</option>)}</select><label className="field-label" htmlFor="rules">Starting rules</label><select id="rules" value={rule} onChange={e => setRule(Number(e.target.value) as RuleSet)}><option value={0}>Official Rules — no stacking</option><option value={1}>House Rules — same-card stacking</option></select><button className="button button-primary button-wide" disabled={busy}>{busy ? 'Please wait…' : '＋ Create private room'}<span>→</span></button></form>
+          <form onSubmit={join} className="join-form"><div className="section-label"><span>OR JOIN FRIENDS</span><span className="line" /></div><div className="join-row"><input aria-label="Room code" value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} maxLength={6} placeholder="ROOM CODE" /><button className="button button-secondary" disabled={busy}>Join room</button></div></form></>}
         </div>
       </section> : <section className="room-view">
-        <div className="room-heading"><div><span className="eyebrow"><span /> PRIVATE TABLE</span><h1>Room <span className="code-inline">{room.code}</span></h1><p>{ruleName(room.ruleSet)} <span className="bullet">·</span> {room.players.length}/{room.maximumPlayers} players <span className="bullet">·</span> {roomStatus(room.status)}</p></div><button className="button button-secondary" onClick={() => void copyCode(room.code, setNotice)}>▣ Copy room code</button></div>
-        {room.status === 0 ? <div className="lobby-grid">
+        <div className="room-heading"><div><span className="eyebrow"><span /> {quickMatch ? "QUICK MATCH" : "PRIVATE TABLE"}</span><h1>Room <span className="code-inline">{room.code}</span></h1><p>{ruleName(room.ruleSet)} <span className="bullet">·</span> {room.players.length}/{room.maximumPlayers} players <span className="bullet">·</span> {roomStatus(room.status)}</p></div>{!quickMatch && <button className="button button-secondary" onClick={() => void copyCode(room.code, setNotice)}>▣ Copy room code</button>}</div>
+        {room.status === 0 && quickMatch ? <div className="panel quick-search" role="status"><h2>Finding a match…</h2><p>Waiting for another online player.</p><button className="button button-secondary" disabled={!hub || busy} onClick={() => void leave()}>Cancel search</button></div> : room.status === 0 ? <div className="lobby-grid">
           <div className="panel players-panel"><div className="panel-title"><div><span className="mini-label">THE TABLE</span><h2>Players <span className="muted-count">{room.players.length}/{room.maximumPlayers}</span></h2></div><span className="waiting-tag"><i /> Waiting</span></div><div className="player-list">{room.players.map((p, i) => <div className="player-row" key={p.id}><div className={'avatar avatar-' + (i % 4)}>{p.displayName.slice(0,1).toUpperCase()}</div><div className="player-info"><strong>{p.displayName}{p.id === access.playerId ? ' (you)' : ''}</strong><span>{p.isCreator ? 'Room host' : 'Player'}</span></div>{p.isCreator && <span className="host-tag">HOST</span>}</div>)}{Array.from({ length: Math.max(0, room.maximumPlayers - room.players.length) }).map((_, i) => <div className="player-row empty-seat" key={i}><div className="avatar avatar-empty">+</div><div className="player-info"><strong>Open seat</strong><span>Share the room code to invite</span></div></div>)}</div><div className="invite-strip"><span className="invite-icon">↗</span><div><strong>Bring your crew</strong><p>Send them the room code to join this table.</p></div><button className="text-button" onClick={() => void copyCode(room.code, setNotice)}>Copy code</button></div></div>
           <div className="panel settings-panel"><span className="mini-label">ROOM SETTINGS</span><h2>Set the vibe.</h2><p className="panel-description">Choose how this game plays. Settings lock once the host starts the match.</p><label className="rule-option"><input type="radio" checked={room.ruleSet === 0} disabled={!isHost || busy} onChange={() => void changeRule(0)} /><span className="rule-radio" /><span className="rule-copy"><strong>Official Rules</strong><small>No stacking. Draw penalties must be taken.</small></span><span className="rule-check">✓</span></label><label className="rule-option"><input type="radio" checked={room.ruleSet === 1} disabled={!isHost || busy} onChange={() => void changeRule(1)} /><span className="rule-radio" /><span className="rule-copy"><strong>House Rules</strong><small>Stack matching +2 on +2 and +4 on +4.</small></span><span className="rule-check">✓</span></label>{!isHost && <p className="host-note">Only the room host can change rules or start the game.</p>}<div className="start-area"><div><strong>{room.players.length < 2 ? 'Waiting for one more player' : 'All set?'}</strong><span>{room.players.length < 2 ? 'At least 2 players are required.' : 'Everyone is in. Let the chaos begin.'}</span></div><button className="button button-primary" onClick={() => void startGame()} disabled={!isHost || room.players.length < 2 || busy}>{busy ? 'Starting…' : 'Start game'} <span>→</span></button></div></div>
         </div> : game ? <div className="game-layout">
