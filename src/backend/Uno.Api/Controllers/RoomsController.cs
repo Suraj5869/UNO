@@ -34,6 +34,28 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         }
     }
 
+    [HttpPost("matchmaking")]
+    public async Task<ActionResult<RoomAccessResponse>> FindMatch(JoinRoomRequest request)
+    {
+        try
+        {
+            var access = roomStore.FindMatch(request.DisplayName);
+            var response = roomStore.ExecuteLocked(access.Room.Code, RoomResponse.From);
+            await publisher.PublishRoomAsync(access.Room.Code);
+            if (response.GameStatus is not null)
+                await publisher.PublishGameStateAsync(access.Room.Code);
+            return Ok(new RoomAccessResponse(response, access.PlayerId, access.AccessToken));
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(Problem("Invalid match request", exception.Message, 400));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(Problem("Could not find match", exception.Message, 409));
+        }
+    }
+
     [HttpGet("{code}")]
     [ProducesResponseType<RoomResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
