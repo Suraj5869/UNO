@@ -17,10 +17,12 @@ public sealed class UnoTurnTimeoutService(RoomStore roomStore, RoomRealtimePubli
                         if (game is null) return (Resolved: false, Action: (GameActionPayload?)null);
 
                         var currentGamePlayerId = game.CurrentPlayer.Id;
-                        var drawCount = game.PendingDrawAmount > 0 ? game.PendingDrawAmount : 1;
+                        var before = game.CurrentPlayer.Hand.Count;
                         if (!new UnoGameEngine().AutoResolveTimedOutTurn(game, DateTimeOffset.UtcNow))
                             return (Resolved: false, Action: (GameActionPayload?)null);
 
+                        var drawCount = game.Players.First(player => player.Id == currentGamePlayerId).Hand.Count - before;
+                        if (drawCount == 0) return (Resolved: true, Action: (GameActionPayload?)null);
                         var roomPlayerId = room.Players.First(player => player.GamePlayerId == currentGamePlayerId).Id;
                         return (Resolved: true, Action: (GameActionPayload?)new GameActionPayload("CardsDrawn", roomPlayerId, null, drawCount));
                     });
