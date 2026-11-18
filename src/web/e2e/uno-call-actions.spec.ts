@@ -96,3 +96,29 @@ test('a different player can catch a missed UNO after the grace period and the t
     await closePlayers(players);
   }
 });
+
+test('a player holding only a Skip must draw instead of going out', async ({ browser, page }) => {
+  const players = await startThreePlayerGame(browser, page);
+  const [host, second, third] = players;
+  try {
+    await reachHostUno(players);
+    await host.page.getByRole('button', { name: 'UNO!' }).click();
+    for (const player of [second, third]) {
+      await player.page.locator('.hand-card').first().click();
+      await player.page.getByRole('button', { name: 'UNO!' }).click();
+    }
+    await host.page.locator('.draw-pile-button').click();
+    // The ordered deck puts a playable Wild Draw Four on top of the draw pile.
+    await host.page.getByRole('button', { name: 'Pass' }).click();
+    await expect(second.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    const lastCard = second.page.locator('.hand-card');
+    await expect(lastCard).toHaveCount(1);
+    await expect(lastCard).toContainText('SKIP');
+    await expect(lastCard).toBeDisabled();
+    await expect(second.page.getByText('Your last card must be a number', { exact: false })).toBeVisible();
+    await second.page.locator('.draw-pile-button').click();
+    await expect(second.page.locator('.hand-card')).toHaveCount(2);
+  } finally {
+    await closePlayers(players);
+  }
+});

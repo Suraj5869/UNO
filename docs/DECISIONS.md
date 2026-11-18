@@ -40,3 +40,7 @@ Reason: Keep source code in GitHub and project context in version-controlled doc
 ## Browser test host
 
 Playwright starts a separate executable that composes the same REST API, SignalR hub and game engine and injects a per-game shuffle source. Only that executable interprets fixture selection. The production API uses the default shuffle.
+
+## Number-only finish in both Classic presets
+
+A player can go out only by playing a legal number card. With one card in hand, Skip, Reverse, Draw Two, Wild and Wild Draw Four cannot be played, including onto a House Rules stack. The player can draw on a normal turn or resolve an outstanding penalty using the usual choices.

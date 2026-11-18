@@ -49,6 +49,11 @@ public sealed class UnoGameEngine
                 "The selected card is not in the current player's hand.");
         }
 
+        if (player.Hand.Count == 1 && card.Type != CardType.Number)
+        {
+            throw new InvalidOperationException("Your last card must be a number card.");
+        }
+
         if (game.JustDrawnCard is not null &&
             game.JustDrawnCard != card)
         {

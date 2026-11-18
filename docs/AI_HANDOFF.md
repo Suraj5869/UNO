@@ -102,4 +102,8 @@ Read [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the current baseline and prop
 
 ## Verified test implementation on 2026-11-18
 
-Both builds passed, all 77 backend cases passed and all 28 Playwright scenarios passed serially with zero retries in 3.7 minutes. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the test host, commands, coverage and remaining gameplay defects. The next proposed task is the final-card House Draw Two completion bug and its regression test.
+Both builds passed, all 77 backend cases passed and all 28 Playwright scenarios passed serially with zero retries in 3.7 minutes. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md) for the test host, commands, coverage and remaining gameplay defects. The subsequent number-only finish rule addresses the final-card Draw Two issue.
+
+## Number-only finish
+
+Both Classic presets reject a last-card action before applying its effects. The client disables that card and explains the rule. Remaining gameplay follow-up includes reverse-direction departures and turn-deadline enforcement.

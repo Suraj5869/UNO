@@ -2,6 +2,10 @@
 
 Reviewed 2026-11-18 on local `main` at `c9f1cb6`. The branch was three commits ahead of its local `origin/main` reference. Existing modified Playwright artifacts were preserved.
 
+## Number-only finish
+
+The server and web client now require a number card to go out in either Classic preset. A final Draw Two cannot create or extend a penalty. Verification: 90 backend tests and 29 Chromium scenarios passed, with zero Playwright retries in 4.2 minutes. The web production build passed.
+
 ## Test implementation follow-up
 
 Local verification on 2026-11-18: `dotnet build src/backend/Uno.sln --no-restore`, the browser-host build and `npm.cmd run build` passed. `dotnet test src/backend/Uno.sln --no-restore` passed all 77 cases. From src/web, `npx.cmd --no-install playwright test --workers=1 --retries=0 --reporter=list` with isolated temporary output passed all 28 Chromium scenarios in 3.7 minutes.
@@ -9,7 +13,7 @@ Local verification on 2026-11-18: `dotnet build src/backend/Uno.sln --no-restore
 - The two previously failing browser flows now use controlled opening deals through a dedicated test executable. The real web client, REST endpoints, SignalR groups, server deadlines and engine process the moves.
 - Engine coverage includes discard recycling at every table size from 2 through 10, a complete ten-player match with card conservation checked each turn, and duplicate/stale actions after timeout.
 - Browser coverage exercises 2, 4, 5, 6 and 10 seats at 390 by 844 and 1280 by 720 pixels. Direct network tests cover personal snapshots, public draws, room-token boundaries, contested seats and simultaneous plays.
-- Gameplay fixes for departure during reverse play, final-card House Draw Two and actions received after the deadline but before the timeout poll remain pending. Production load, physical devices and additional browser engines remain unverified.
+- Gameplay fixes for departure during reverse play and actions received after the deadline but before the timeout poll remain pending. Production load, physical devices and additional browser engines remain unverified.
 
 The sections below retain the original audit baseline.
 
@@ -71,7 +75,7 @@ Fresh artifacts are in `%TEMP%\uno-audit-20261118-15824`. The run used the exist
 ## Proposed implementation order
 
 1. Triage current browser failures and make UNO/rematch fixtures reproducible while retaining real API, SignalR and browser assertions.
-2. Fix final-card House Draw Two completion, direction-aware departures and turn deadline enforcement. Preserve the active player's draw restriction and deadline when another seat leaves. Agree how departed cards and unresolved penalties should be handled, then record that decision and test it.
+2. Fix direction-aware departures and turn deadline enforcement. Preserve the active player's draw restriction and deadline when another seat leaves. Agree how departed cards and unresolved penalties should be handled, then record that decision and test it.
 3. Add API/SignalR privacy and authorization tests, simultaneous-action and timeout coverage, ordered snapshots and responsive multiplayer checks.
 4. Complete opening-action rules and prioritize bots, public matchmaking, accounts, persistence, native clients and additional variants against product goals.
 

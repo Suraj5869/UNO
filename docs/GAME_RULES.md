@@ -11,6 +11,10 @@ Implement the agreed rule specification, and do not copy proprietary artwork or 
 - Deal seven cards to each player.
 - The current setup implementation starts with a number card as the first discard. This is an intentional temporary simplification until we implement and test the official initial-action-card rules.
 
+## Finishing a match
+
+A player can go out only by playing a legal number card. With one card in hand, Skip, Reverse, Draw Two, Wild and Wild Draw Four cannot be played, including onto a House Rules stack. The player can draw on a normal turn or resolve an outstanding penalty using the usual choices. This project rule applies to both Classic presets.
+
 ## Official Rules baseline
 
 - A normal card is playable when its color matches the active color, its number matches the top number card, or its action matches the top action card.
