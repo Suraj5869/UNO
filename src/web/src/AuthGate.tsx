@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
@@ -81,7 +82,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in.'); }
     finally { setBusy(false); }
   };
-  if (loading) return <div className="auth-shell auth-loading" role="status"><div className="auth-spinner"/>Restoring your session…</div>;
+  if (loading) return <div className="auth-shell auth-loading"><LoadingScreen title="Restoring your session"/></div>;
   if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; sessionStorage.setItem(KEY, JSON.stringify(next)); setSession(next); } })}</>;
   return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
     <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
