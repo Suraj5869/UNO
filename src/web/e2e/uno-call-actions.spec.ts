@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { reachHostUno } from './number-turns';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -14,11 +15,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<TestPlayer[]> {
   const players: TestPlayer[] = [{ name: 'Host', context: null as unknown as BrowserContext, page: hostPage }];
   await hostPage.setExtraHTTPHeaders({ 'X-Test-Deal': 'numbers' });
-  await hostPage.goto('/');
-  await hostPage.getByLabel('Your display name').fill('Host');
-  await hostPage.getByLabel('Maximum players').selectOption('3');
-  await hostPage.getByLabel('Starting rules').selectOption('0');
-  await hostPage.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(hostPage, 'Host', Number('3'), '0');
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
   await expect(hostPage.getByText('Official Rules', { exact: true })).toBeVisible();
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
@@ -27,10 +24,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<T
   for (const name of ['Friend 1', 'Friend 2']) {
     const player = await createPlayer(browser, name);
     players.push(player);
-    await player.page.goto('/');
-    await player.page.getByLabel('Your display name').fill(name);
-    await player.page.getByLabel('Room code').fill(roomCode!);
-    await player.page.getByRole('button', { name: 'Join room' }).click();
+    await submitRoomJoin(player.page, name, roomCode!);
     await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
     await expect(player.page.getByText('Live connection')).toBeVisible();
   }
@@ -41,7 +35,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<T
 }
 
 async function closePlayers(players: TestPlayer[]) {
-  await Promise.all(players.slice(1).map(player => player.context.close()));
+  await Promise.allSettled(players.slice(1).map(player => player.context.close()));
 }
 
 test('a player can call UNO within the three-second grace period and all clients see it', async ({ browser, page }) => {
