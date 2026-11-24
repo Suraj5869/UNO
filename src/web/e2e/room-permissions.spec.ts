@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(90_000);
@@ -10,10 +11,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 }
 
 async function createRoom(host: TestPlayer, capacity = 3): Promise<string> {
-  await host.page.goto('/');
-  await host.page.getByLabel('Your display name').fill(host.name);
-  await host.page.getByLabel('Maximum players').selectOption(String(capacity));
-  await host.page.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(host.page, host.name, Number(String(capacity)));
   await expect(host.page.getByRole('heading', { name: /Room/ })).toBeVisible();
   const roomCode = (await host.page.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
@@ -21,10 +19,7 @@ async function createRoom(host: TestPlayer, capacity = 3): Promise<string> {
 }
 
 async function joinRoom(player: TestPlayer, roomCode: string) {
-  await player.page.goto('/');
-  await player.page.getByLabel('Your display name').fill(player.name);
-  await player.page.getByLabel('Room code').fill(roomCode);
-  await player.page.getByRole('button', { name: 'Join room' }).click();
+  await submitRoomJoin(player.page, player.name, roomCode);
   await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 }
 
@@ -59,7 +54,7 @@ test('non-host UI and direct API requests cannot change rules or start a match',
     await expect(host.page.getByText('Official Rules', { exact: true })).toBeVisible();
     await expect(host.page.getByText('Players 2/2')).toBeVisible();
   } finally {
-    await Promise.all([host.context.close(), friend.context.close()]);
+    await Promise.allSettled([host.context.close(), friend.context.close()]);
   }
 });
 
@@ -85,7 +80,7 @@ test('the next participant becomes host when the creator leaves the lobby', asyn
     await expect(promoted.page.locator('.hand-card')).toHaveCount(7);
     await expect(newcomer.page.locator('.hand-card')).toHaveCount(7);
   } finally {
-    await Promise.all([host.context.close(), promoted.context.close(), newcomer.context.close()]);
+    await Promise.allSettled([host.context.close(), promoted.context.close(), newcomer.context.close()]);
   }
 });
 
@@ -100,13 +95,10 @@ test('a new participant cannot join a room after the host starts the match', asy
     await host.page.getByRole('button', { name: /Start game/ }).click();
     await expect(host.page.getByText('MATCH IN PROGRESS')).toBeVisible();
 
-    await visitor.page.goto('/');
-    await visitor.page.getByLabel('Your display name').fill(visitor.name);
-    await visitor.page.getByLabel('Room code').fill(roomCode);
-    await visitor.page.getByRole('button', { name: 'Join room' }).click();
+    await submitRoomJoin(visitor.page, visitor.name, roomCode);
     await expect(visitor.page.getByRole('alert')).toContainText(/room|join|started|progress/i);
   } finally {
-    await Promise.all([host.context.close(), friend.context.close(), visitor.context.close()]);
+    await Promise.allSettled([host.context.close(), friend.context.close(), visitor.context.close()]);
   }
 });
 
