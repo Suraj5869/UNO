@@ -163,3 +163,48 @@ test('drawing cards updates the hand and passing a playable draw advances the tu
     await friend.context.close();
   }
 });
+
+test('rapid draw clicks consume exactly one card', async ({ browser, page }) => {
+  const friend = await createPlayer(browser, 'Friend');
+  try {
+    await startTwoPlayerGame(page, friend);
+    const before = await page.locator('.hand-card').count();
+    const draw = page.locator('.draw-pile-button');
+    await expect(draw).toBeEnabled();
+    await draw.evaluate(button => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+    await expect(page.locator('.hand-card')).toHaveCount(before + 1);
+    await waitForDrawResolution(page, friend.page);
+    await expect(friend.page.locator('.opponent').filter({ hasText: 'Host' })).toContainText(`${before + 1} cards`);
+    await expect(page.locator('.hand-card')).toHaveCount(before + 1);
+  } finally {
+    await friend.context.close();
+  }
+});
+
+test('two active rooms keep gameplay and hands isolated', async ({ browser, page }) => {
+  const friend = await createPlayer(browser, 'Friend');
+  const secondHost = await createPlayer(browser, 'Second host');
+  const secondFriend = await createPlayer(browser, 'Second friend');
+  try {
+    await startTwoPlayerGame(page, friend);
+    await startTwoPlayerGame(secondHost.page, secondFriend);
+    const before = await page.locator('.hand-card').count();
+    const secondBefore = await secondHost.page.locator('.hand-card').count();
+    await Promise.all([
+      page.locator('.draw-pile-button').click(),
+      secondHost.page.locator('.draw-pile-button').click()
+    ]);
+    await expect(page.locator('.hand-card')).toHaveCount(before + 1);
+    await expect(secondHost.page.locator('.hand-card')).toHaveCount(secondBefore + 1);
+    await expect(friend.page.locator('.hand-card')).toHaveCount(7);
+    await expect(secondFriend.page.locator('.hand-card')).toHaveCount(7);
+    await expect(friend.page.locator('.opponent')).toHaveCount(1);
+    await expect(secondFriend.page.locator('.opponent')).toHaveCount(1);
+  } finally {
+    await Promise.all([friend.context.close(), secondHost.context.close(), secondFriend.context.close()]);
+  }
+});
