@@ -24,8 +24,8 @@ async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<Tes
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
-  await expect(hostPage.getByText('MATCH IN PROGRESS')).toBeVisible();
-  await expect(friend.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+  await expect(hostPage.locator('.table-felt')).toBeVisible();
+  await expect(friend.page.locator('.table-felt')).toBeVisible();
   return [host, friend];
 }
 
@@ -64,7 +64,7 @@ test('the winner sees the match result and both players can opt into a fresh rem
     await other.page.getByRole('button', { name: /Start game/ }).click();
 
     for (const player of players) {
-      await expect(player.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+      await expect(player.page.locator('.table-felt')).toBeVisible();
       await expect(player.page.locator('.hand-card')).toHaveCount(7);
     }
   } finally {
