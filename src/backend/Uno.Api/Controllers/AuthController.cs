@@ -18,11 +18,11 @@ public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, 
 public sealed record RefreshRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string RefreshToken);
 public sealed record ProfileUpdateRequest([Required, StringLength(24, MinimumLength = 1)] string DisplayName);
 public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey);
-public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped);
+public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped, int RequiredLevel, int RequiredSeasonXp);
 public sealed record AccountIdentity(Guid Id);
 public sealed record AccountRow(Guid Id, string PasswordHash);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
-    string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins);
+    string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins, string CardBackKey, string TableThemeKey);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, int ExpiresIn, PlayerProfile Player);
 
 [ApiController]
@@ -35,7 +35,9 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
     private const string ProfileSql = """
         select u.id as UserId, p.public_player_id as PublicPlayerId, u.email, p.username,
         p.display_name as DisplayName, p.avatar_key as AvatarKey, g.level, g.total_xp as TotalXp,
-        s.matches_played as MatchesPlayed, s.wins
+        s.matches_played as MatchesPlayed, s.wins,
+        coalesce((select c.item_key from uno.player_loadouts l join uno.cosmetic_items c on c.id=l.item_id where l.user_id=u.id and l.category='card_back'),'card_back_classic') as CardBackKey,
+        coalesce((select c.item_key from uno.player_loadouts l join uno.cosmetic_items c on c.id=l.item_id where l.user_id=u.id and l.category='table_theme'),'table_theme_default') as TableThemeKey
         from uno.users u join uno.player_profiles p on p.user_id=u.id
         join uno.player_progress g on g.user_id=u.id
         join uno.player_statistics s on s.user_id=u.id where u.id=@Id
@@ -162,12 +164,37 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         await using var connection = await source.OpenConnectionAsync(ct);
         return Ok(await connection.QueryAsync<CosmeticView>(new CommandDefinition("""
             select c.item_key as ItemKey,c.category,c.display_name as DisplayName,
-              (i.item_id is not null) as Owned,(l.item_id is not null) as Equipped
+              (i.item_id is not null) as Owned,(l.item_id is not null) as Equipped,c.required_level as RequiredLevel,c.required_season_xp as RequiredSeasonXp
             from uno.cosmetic_items c
             left join uno.player_inventory i on i.item_id=c.id and i.user_id=@Id
             left join uno.player_loadouts l on l.item_id=c.id and l.user_id=@Id
             where c.is_active order by c.category,c.item_key
             """, new { Id=id }, cancellationToken:ct)));
+    }
+
+    [Authorize]
+    [HttpPut("collection/equip")]
+    public async Task<IActionResult> Equip(CosmeticSelection request, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
+        if (Source is not {} source) return StatusCode(503);
+        await using var connection = await source.OpenConnectionAsync(ct);
+        await using var tx = await connection.BeginTransactionAsync(ct);
+        var category = await connection.ExecuteScalarAsync<string>(new CommandDefinition("""
+            insert into uno.player_loadouts(user_id,category,item_id)
+            select @Id,c.category,c.id from uno.cosmetic_items c
+            join uno.player_inventory i on i.item_id=c.id and i.user_id=@Id
+            where c.item_key=@Key and c.is_active
+            on conflict(user_id,category) do update set item_id=excluded.item_id
+            returning category
+            """, new { Id=id, Key=request.ItemKey },tx,cancellationToken:ct));
+        if (category is null) return BadRequest(new { message="This cosmetic is locked or unavailable." });
+        if (category == "avatar")
+            await connection.ExecuteAsync(new CommandDefinition("update uno.player_profiles set avatar_key=@Key where user_id=@Id",
+                new { Id=id, Key=request.ItemKey },tx,cancellationToken:ct));
+        var profile = await connection.QuerySingleAsync<PlayerProfile>(new CommandDefinition(ProfileSql,new { Id=id },tx,cancellationToken:ct));
+        await tx.CommitAsync(ct);
+        return Ok(profile);
     }
 
     private static async Task<AuthResponse> Issue(NpgsqlConnection connection, NpgsqlTransaction tx, JwtSettings jwt, Guid id, CancellationToken ct)
