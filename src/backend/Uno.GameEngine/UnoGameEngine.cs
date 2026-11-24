@@ -101,6 +101,7 @@ public sealed class UnoGameEngine
             game.UnoCallDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(3);
         }
         game.MutableDiscardPile.Add(card);
+        game.CardsPlayed++;
         game.JustDrawnCard = null;
         game.ActiveColor = isWild ? chosenColor : card.Color;
 
