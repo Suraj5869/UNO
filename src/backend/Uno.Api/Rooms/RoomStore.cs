@@ -103,6 +103,15 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         }
     }
 
+    public RoomResponse CancelSearch(string code,string token)
+    {
+        lock (_sync)
+        {
+            if (!_matchmakingRooms.Contains(code)) throw new InvalidOperationException("The match has already started or the search has ended.");
+            return Leave(code,token);
+        }
+    }
+
     public bool IsSearching(string code) { lock (_sync) return _matchmakingRooms.Contains(code); }
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
