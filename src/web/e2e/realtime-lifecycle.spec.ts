@@ -27,21 +27,21 @@ async function startTwoPlayerGame(
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
-  await expect(hostPage.getByText('MATCH IN PROGRESS')).toBeVisible();
-  await expect(friend.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+  await expect(hostPage.locator('.table-felt')).toBeVisible();
+  await expect(friend.page.locator('.table-felt')).toBeVisible();
   return [host, friend];
 }
 
 async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
   await expect.poll(async () => {
     for (let index = 0; index < players.length; index++) {
-      if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
+      if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) return index;
     }
     return -1;
   }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
 
   for (let index = 0; index < players.length; index++) {
-    if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
+    if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) return index;
   }
   throw new Error('No player received the active turn.');
 }
@@ -72,13 +72,13 @@ test('a disconnected active player is timed out, then reconnects with the author
 
     // The server owns timeout enforcement. The connected opponent should see
     // the turn advance after 30s and the disconnected player draw one card.
-    await expect(nextPlayer.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible({ timeout: 45_000 });
+    await expect(nextPlayer.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible({ timeout: 45_000 });
 
     await disconnected.context.setOffline(false);
     await expect(disconnected.page.getByText('Reconnected to the room.', { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(disconnected.page.locator('.hand-card')).toHaveCount(originalHandSize + 1);
-    await expect(disconnected.page.getByRole('heading', { name: 'Waiting on ' + nextPlayer.name })).toBeVisible();
-    await expect(nextPlayer.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(disconnected.page.locator('.opponent.is-turn strong').filter({ hasText: nextPlayer.name })).toBeVisible();
+    await expect(nextPlayer.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
   } finally {
     await Promise.allSettled(players.slice(1).map(player => player.context.close()));
   }
@@ -97,9 +97,9 @@ test('a House Rules Draw Two penalty is automatically drawn and skipped when its
 
     // Penalty timeout draws the accumulated amount, not the normal one-card
     // timeout amount, and still skips the recipient's turn.
-    await expect(offender.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible({ timeout: 40_000 });
+    await expect(offender.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible({ timeout: 40_000 });
     await expect(recipient.page.locator('.hand-card')).toHaveCount(originalHandSize + 2, { timeout: 10_000 });
-    await expect(offender.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(offender.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
     await expect(recipient.page.getByText(/Draw penalty/)).toHaveCount(0);
   } finally {
     await Promise.allSettled(players.slice(1).map(player => player.context.close()));
