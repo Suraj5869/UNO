@@ -6,27 +6,55 @@ export interface Profile { userId: string; publicPlayerId: string; email: string
 interface Session { accessToken: string; refreshToken: string; expiresIn: number; player: Profile; expiresAt: number }
 const KEY = 'uno-account-session';
 function read(): Session | null { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } }
+class ApiError extends Error {
+  constructor(public readonly status: number, message: string) { super(message); }
+}
+const invalidSession = (error: unknown) => error instanceof ApiError && error.status === 401;
+const SESSION_EVENT = 'uno-account-session-change';
+function publishSession(value: Session | null) {
+  if (value) sessionStorage.setItem(KEY, JSON.stringify(value));
+  else {
+    for (const key of [KEY, 'uno-room-access', 'uno-quick-match']) sessionStorage.removeItem(key);
+  }
+  window.dispatchEvent(new Event(SESSION_EVENT));
+}
 async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
   const response = await fetch(API + '/api/auth/' + path, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new Error(data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
+    throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
   }
   return response.status === 204 ? undefined as T : response.json();
 }
 function save(s: Omit<Session, 'expiresAt'>): Session {
   const value = { ...s, expiresAt: Date.now() + s.expiresIn * 1000 };
-  sessionStorage.setItem(KEY, JSON.stringify(value)); return value;
+  publishSession(value); return value;
 }
 let rotating: Promise<Session> | null = null;
-function rotate(s: Session) {
-  if (!rotating) rotating = request<Session>('refresh', { refreshToken: s.refreshToken }).then(save).finally(() => { rotating = null; });
+function rotate(s: Session): Promise<Session> {
+  const latest = read();
+  if (!latest || latest.player.userId !== s.player.userId) return Promise.reject(new Error('Session changed.'));
+  if (latest.refreshToken !== s.refreshToken) return Promise.resolve(latest);
+  if (!rotating) {
+    rotating = request<Session>('refresh', { refreshToken: s.refreshToken }).then(next => {
+      if (read()?.refreshToken !== s.refreshToken) throw new Error('Session changed.');
+      return save(next);
+    }).catch(error => {
+      if (invalidSession(error) && read()?.refreshToken === s.refreshToken) publishSession(null);
+      throw error;
+    }).finally(() => { rotating = null; });
+  }
   return rotating;
 }
 export async function accountRequest<T>(path: string, body?: unknown, method?: string): Promise<T> {
   let current = read(); if (!current) throw new Error('Please sign in again.');
   if (current.expiresAt <= Date.now() + 60000) current = await rotate(current);
-  return request<T>(path, body, current.accessToken, method);
+  try { return await request<T>(path, body, current.accessToken, method); }
+  catch (error) {
+    if (!invalidSession(error)) throw error;
+    current = await rotate(current);
+    return request<T>(path, body, current.accessToken, method);
+  }
 }
 export default function AuthGate({ children }: { children: (player: Profile | null, logout: () => Promise<void>, updateProfile: (profile: Profile) => void) => ReactNode }) {
   const [session, setSession] = useState<Session | null>(read);
@@ -42,29 +70,43 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
+    const sync = () => setSession(read());
+    window.addEventListener(SESSION_EVENT, sync);
+    return () => window.removeEventListener(SESSION_EVENT, sync);
+  }, []);
+  useEffect(() => {
     const saved = read();
     if (!saved) return;
     let active = true;
     (async () => {
       try {
-        let current = saved.expiresAt <= Date.now() + 60000 ? await rotate(saved) : saved;
-        let player: Profile;
-        try { player = await request<Profile>('me', undefined, current.accessToken); }
-        catch { current = await rotate(current); player = await request<Profile>('me', undefined, current.accessToken); }
-        if (active) { setSession({ ...current, player }); setGuest(false); }
-      } catch { if (active) { sessionStorage.removeItem(KEY); setSession(null); setError('Session could not be restored. Please sign in again.'); } }
-      finally { if (active) setLoading(false); }
+        const player = await accountRequest<Profile>('me');
+        const current = read();
+        if (active && current && current.player.userId === player.userId) {
+          publishSession({ ...current, player }); setGuest(false);
+        }
+      } catch {
+        if (active && !read()) setError('Session expired. Please sign in again.');
+      } finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
   }, []);
   useEffect(() => {
     if (!session || loading) return;
     let active = true;
-    const timer = window.setTimeout(() => {
-      void rotate(session).then(next => { if (active) setSession(next); }).catch(() => {
-        if (active) { sessionStorage.removeItem(KEY); sessionStorage.removeItem('uno-room-access'); sessionStorage.removeItem('uno-quick-match'); setSession(null); setError('Session expired. Please sign in again.'); }
-      });
-    }, Math.max(0, session.expiresAt - Date.now() - 60000));
+    let timer: number;
+    const refresh = async () => {
+      if (!active) return;
+      const current = read();
+      if (!current) return;
+      try { await rotate(current); }
+      catch {
+        if (!active) return;
+        if (!read()) setError('Session expired. Please sign in again.');
+        else timer = window.setTimeout(refresh, 15000);
+      }
+    };
+    timer = window.setTimeout(refresh, Math.max(1000, session.expiresAt - Date.now() - 60000));
     return () => { active = false; window.clearTimeout(timer); };
   }, [session, loading]);
   const logout = async () => {
@@ -83,7 +125,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     finally { setBusy(false); }
   };
   if (loading) return <div className="auth-shell auth-loading"><LoadingScreen title="Restoring your session"/></div>;
-  if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; sessionStorage.setItem(KEY, JSON.stringify(next)); setSession(next); } })}</>;
+  if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; publishSession(next); } })}</>;
   return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
     <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
     <section className="auth-panel"><h2 id="auth-heading">{register ? 'Create Account' : 'Sign In'}</h2>
