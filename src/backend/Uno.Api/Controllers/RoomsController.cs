@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Uno.Api.Rooms;
+using Uno.GameEngine;
 
 namespace Uno.Api.Controllers;
 
@@ -35,6 +36,32 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         {
             return Conflict(Problem("Could not create room", exception.Message, 409));
         }
+    }
+
+    public sealed record PracticeRequest(string DisplayName,int BotCount,BotDifficulty Difficulty,UnoRuleSet RuleSet);
+    public sealed record AddBotsRequest(string AccessToken,int BotCount,BotDifficulty Difficulty);
+
+    [HttpPost("practice")]
+    public ActionResult<RoomAccessResponse> Practice(PracticeRequest request)
+    {
+        try {
+            var access=roomStore.CreatePractice(request.DisplayName,request.BotCount,request.Difficulty,request.RuleSet,AccountId);
+            return Ok(new RoomAccessResponse(roomStore.ExecuteLocked(access.Room.Code,RoomResponse.From),access.PlayerId,access.AccessToken));
+        } catch(ArgumentException ex) { return BadRequest(Problem("Invalid practice settings",ex.Message,400)); }
+        catch(InvalidOperationException ex) { return Conflict(Problem("Cannot create practice",ex.Message,409)); }
+    }
+
+    [HttpPost("{code}/bots")]
+    public async Task<ActionResult<RoomResponse>> AddBots(string code,AddBotsRequest request)
+    {
+        try {
+            roomStore.AddBots(code,request.AccessToken,request.BotCount,request.Difficulty);
+            await publisher.PublishRoomAsync(code);
+            return Ok(roomStore.ExecuteLocked(code,RoomResponse.From));
+        } catch(UnauthorizedAccessException ex) { return StatusCode(403,Problem("Host required",ex.Message,403)); }
+        catch(KeyNotFoundException ex) { return NotFound(Problem("Room not found",ex.Message,404)); }
+        catch(ArgumentException ex) { return BadRequest(Problem("Invalid bot settings",ex.Message,400)); }
+        catch(InvalidOperationException ex) { return Conflict(Problem("Cannot add bots",ex.Message,409)); }
     }
 
     [HttpPost("matchmaking")]
