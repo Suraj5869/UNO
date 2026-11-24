@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(180_000);
@@ -15,10 +16,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 }
 
 async function joinRoom(player: TestPlayer, roomCode: string) {
-  await player.page.goto('/');
-  await player.page.getByLabel('Your display name').fill(player.name);
-  await player.page.getByLabel('Room code').fill(roomCode);
-  await player.page.getByRole('button', { name: 'Join room' }).click();
+  await submitRoomJoin(player.page, player.name, roomCode);
   await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
   await expect(player.page.getByText('Live connection')).toBeVisible();
 }
@@ -31,10 +29,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
       const host = await createPlayer(browser, 'Player 1');
       players.push(host);
 
-      await host.page.goto('/');
-      await host.page.getByLabel('Your display name').fill(host.name);
-      await host.page.getByLabel('Maximum players').selectOption(String(capacity));
-      await host.page.getByRole('button', { name: /Create private room/ }).click();
+      await createPrivateRoom(host.page, host.name, Number(String(capacity)));
 
       await expect(host.page.getByRole('heading', { name: /Room/ })).toBeVisible();
       await expect(host.page.getByText('Live connection')).toBeVisible();
@@ -51,10 +46,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
 
       const extraPlayer = await createPlayer(browser, `Player ${capacity + 1}`);
       players.push(extraPlayer);
-      await extraPlayer.page.goto('/');
-      await extraPlayer.page.getByLabel('Your display name').fill(extraPlayer.name);
-      await extraPlayer.page.getByLabel('Room code').fill(roomCode!);
-      await extraPlayer.page.getByRole('button', { name: 'Join room' }).click();
+      await submitRoomJoin(extraPlayer.page, extraPlayer.name, roomCode!);
       await expect(extraPlayer.page.getByRole('alert')).toContainText(/full/i);
 
       await host.page.getByRole('button', { name: /Start game/ }).click();
@@ -107,7 +99,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
         await expect(player.page.locator('.hand-card')).toHaveCount(7);
       }
     } finally {
-      await Promise.all(players.map(player => player.context.close()));
+      await Promise.allSettled(players.map(player => player.context.close()));
     }
   });
 }
