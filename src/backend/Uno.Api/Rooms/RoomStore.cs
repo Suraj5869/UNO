@@ -28,6 +28,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         {
             var room = GetByCodeUnsafe(code);
+            if (_matchmakingRooms.Contains(room.Code)) throw new InvalidOperationException("Bots are not allowed in public queues.");
             if (AuthorizeParticipant(code,token)!=room.CreatorPlayerId) throw new UnauthorizedAccessException("Only the host can add bots.");
             if (!Enum.IsDefined(difficulty) || count<1 || count>room.MaximumPlayers-room.Players.Count || room.Status!=UnoRoomStatus.Waiting)
                 throw new ArgumentException("Invalid bot count, difficulty or room status.");
@@ -72,26 +73,37 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly HashSet<Guid> _abandonedMatches = new();
     private readonly HashSet<string> _matchmakingRooms = new(StringComparer.OrdinalIgnoreCase);
 
-    // Initial quick-match preset: two players, Classic Official rules.
-    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) FindMatch(string displayName, Guid? userId = null)
+    // Waiting public rooms are FIFO queues for an exact player count and rule set.
+    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) FindMatch(string displayName, Guid? userId = null, int maximumPlayers = 2, UnoRuleSet ruleSet = UnoRuleSet.Official)
     {
+        if (maximumPlayers is < 2 or > 10 || !Enum.IsDefined(ruleSet))
+            throw new ArgumentException("Choose 2–10 players and a valid rule set.");
         lock (_sync)
         {
+            if (userId.HasValue && _roomsByCode.Values.Any(room =>
+                _matchmakingRooms.Contains(room.Code) && room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value)))
+                throw new InvalidOperationException("Your account is already searching for a match.");
             var waiting = _roomsByCode.Values.FirstOrDefault(room =>
-                _matchmakingRooms.Contains(room.Code) &&
-                room.Status == UnoRoomStatus.Waiting && room.Players.Count == 1 && (!userId.HasValue || !room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value)));
+                _matchmakingRooms.Contains(room.Code) && room.Status == UnoRoomStatus.Waiting &&
+                room.MaximumPlayers == maximumPlayers && room.RuleSet == ruleSet &&
+                room.Players.Count < maximumPlayers);
             if (waiting is null)
             {
-                var created = Create(new CreateRoomRequest(displayName, 2, UnoRuleSet.Official), userId);
+                var created = Create(new CreateRoomRequest(displayName, maximumPlayers, ruleSet), userId);
                 _matchmakingRooms.Add(created.Room.Code);
                 return created;
             }
-            var joined = Join(waiting.Code, displayName, userId);
-            waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
-            _matchmakingRooms.Remove(waiting.Code);
+            var joined = Join(waiting.Code, displayName, userId, publicQueue: true);
+            if (waiting.Players.Count == maximumPlayers)
+            {
+                waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
+                _matchmakingRooms.Remove(waiting.Code);
+            }
             return joined;
         }
     }
+
+    public bool IsSearching(string code) { lock (_sync) return _matchmakingRooms.Contains(code); }
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
         CreateRoomRequest request, Guid? userId = null)
@@ -126,13 +138,14 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Join(
         string code,
-        string displayName, Guid? userId = null)
+        string displayName, Guid? userId = null, bool publicQueue = false)
     {
         var accessToken = GenerateAccessToken();
 
         lock (_sync)
         {
             var room = GetByCodeUnsafe(code);
+            if (_matchmakingRooms.Contains(room.Code) && !publicQueue) throw new InvalidOperationException("Join public matches through matchmaking.");
             if (userId.HasValue && room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value))
                 throw new InvalidOperationException("Account already occupies a seat.");
             var player = room.Join(displayName);
@@ -207,6 +220,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 throw new UnauthorizedAccessException("The room access token is invalid.");
             }
 
+            if (_matchmakingRooms.Contains(room.Code)) throw new InvalidOperationException("Public matches start automatically when full.");
             var game = room.StartGame(playerId, dealRandom?.Invoke(room));
             if(room.Players.Any(p=>_bots.ContainsKey(p.Id))) _practiceMatches.Add(game.MatchId);
             if (_rematchCandidatesByRoomCode.Remove(room.Code, out var candidates))
@@ -237,8 +251,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             if (room.Game is { Status: GameStatus.InProgress } activeGame) _abandonedMatches.Add(activeGame.MatchId);
             room.Leave(playerId);
             _accounts.Remove(playerId);
-            if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players) _bots.Remove(bot.Id); _roomsByCode.Remove(room.Code); _tokensByRoomCode.Remove(room.Code); _rematchCandidatesByRoomCode.Remove(room.Code); _matchmakingRooms.Remove(room.Code); }
             _tokensByRoomCode[room.Code].Remove(accessToken);
+            if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players) _bots.Remove(bot.Id); _matchmakingRooms.Remove(room.Code); }
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
                 candidates.Remove(playerId);
 
