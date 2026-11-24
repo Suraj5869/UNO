@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(120_000);
@@ -18,19 +19,13 @@ async function startTwoPlayerGame(
   hostPage: Page,
   friend: TestPlayer,
 ) {
-  await hostPage.goto('/');
-  await hostPage.getByLabel('Your display name').fill('Host');
-  await hostPage.getByLabel('Maximum players').selectOption('2');
-  await hostPage.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(hostPage, 'Host', Number('2'));
 
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
-  await friend.page.goto('/');
-  await friend.page.getByLabel('Your display name').fill(friend.name);
-  await friend.page.getByLabel('Room code').fill(roomCode!);
-  await friend.page.getByRole('button', { name: 'Join room' }).click();
+  await submitRoomJoin(friend.page, friend.name, roomCode!);
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
