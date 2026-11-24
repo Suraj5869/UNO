@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(180_000);
@@ -36,11 +37,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: '
   ];
 
   await hostPage.setExtraHTTPHeaders({ 'X-Test-Deal': fixture });
-  await hostPage.goto('/');
-  await hostPage.getByLabel('Your display name').fill('Host');
-  await hostPage.getByLabel('Maximum players').selectOption('3');
-  await hostPage.getByLabel('Starting rules').selectOption(ruleSet === 'house' ? '1' : '0');
-  await hostPage.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(hostPage, 'Host', Number('3'), ruleSet === 'house' ? '1' : '0');
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await expect(hostPage.getByText(ruleSet === 'house' ? 'House Rules' : 'Official Rules', { exact: true })).toBeVisible();
@@ -51,10 +48,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: '
   for (const name of ['Friend 1', 'Friend 2']) {
     const player = await createPlayer(browser, name);
     players.push(player);
-    await player.page.goto('/');
-    await player.page.getByLabel('Your display name').fill(name);
-    await player.page.getByLabel('Room code').fill(roomCode!);
-    await player.page.getByRole('button', { name: 'Join room' }).click();
+    await submitRoomJoin(player.page, name, roomCode!);
     await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
   }
 
@@ -147,7 +141,7 @@ async function playTargetCard(
 }
 
 async function closePlayers(players: TestPlayer[]) {
-  await Promise.all(players.slice(1).map(player => player.context.close()));
+  await Promise.allSettled(players.slice(1).map(player => player.context.close()));
 }
 
 test('Skip advances over the next player', async ({ browser, page }) => {
