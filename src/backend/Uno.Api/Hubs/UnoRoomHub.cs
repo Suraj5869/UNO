@@ -12,31 +12,31 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 {
     public async Task<RoomResponse> JoinRoom(string code, string accessToken)
     {
-        var joined = roomStore.ExecuteLocked(code, room =>
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+        await Groups.AddToGroupAsync(Context.ConnectionId, RoomRealtimePublisher.PlayerGroup(code, playerId));
+        await Groups.AddToGroupAsync(Context.ConnectionId, RoomRealtimePublisher.RoomGroup(code));
+
+        // Capture after subscription so an update cannot fall between the
+        // initial snapshot and group membership.
+        try
         {
-            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
-            var gameState = room.Game is null
-                ? null
-                : GameStateResponse.From(room, playerId);
-            return (PlayerId: playerId, Room: RoomResponse.From(room), GameState: gameState);
-        });
-
-        await Groups.AddToGroupAsync(
-            Context.ConnectionId,
-            RoomRealtimePublisher.PlayerGroup(code, joined.PlayerId));
-        await Groups.AddToGroupAsync(
-            Context.ConnectionId,
-            RoomRealtimePublisher.RoomGroup(code));
-
-        await Clients.Group(RoomRealtimePublisher.RoomGroup(code))
-            .SendAsync("RoomUpdated", joined.Room);
-
-        if (joined.GameState is not null)
-        {
-            await Clients.Caller.SendAsync("GameStateUpdated", joined.GameState);
+            var joined = roomStore.ExecuteLocked(code, room =>
+            {
+                roomStore.AuthorizeParticipant(code, accessToken);
+                return (Room: RoomResponse.From(room), GameState: room.Game is null
+                    ? null : GameStateResponse.From(room, playerId));
+            });
+            await Clients.Caller.SendAsync("RoomUpdated", joined.Room);
+            if (joined.GameState is not null)
+                await Clients.Caller.SendAsync("GameStateUpdated", joined.GameState);
+            return joined.Room;
         }
-
-        return joined.Room;
+        catch
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, RoomRealtimePublisher.PlayerGroup(code, playerId));
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, RoomRealtimePublisher.RoomGroup(code));
+            throw;
+        }
     }
 
     public async Task LeaveRoom(string code, string accessToken)
