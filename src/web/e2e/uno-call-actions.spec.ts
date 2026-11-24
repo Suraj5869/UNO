@@ -30,7 +30,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<T
   }
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
-  for (const player of players) await expect(player.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+  for (const player of players) await expect(player.page.locator('.table-felt')).toBeVisible();
   return players;
 }
 
@@ -84,7 +84,7 @@ test('a different player can catch a missed UNO after the grace period and the t
     // Catching is not a turn action: the target draws two and the current
     // player's turn remains active even when a third participant catches.
     await expect(actor.page.locator('.hand-card')).toHaveCount(3);
-    await expect(currentPlayer.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(currentPlayer.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
     for (const player of players) await expect(player.page.locator('.uno-banner')).toHaveCount(0);
   } finally {
     await closePlayers(players);
@@ -104,7 +104,7 @@ test('a player holding only a Skip must draw instead of going out', async ({ bro
     await host.page.locator('.draw-pile-button').click();
     // The ordered deck puts a playable Wild Draw Four on top of the draw pile.
     await host.page.getByRole('button', { name: 'Pass' }).click();
-    await expect(second.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(second.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
     const lastCard = second.page.locator('.hand-card');
     await expect(lastCard).toHaveCount(1);
     await expect(lastCard).toContainText('SKIP');
