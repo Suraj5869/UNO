@@ -75,8 +75,8 @@ test('the next participant becomes host when the creator leaves the lobby', asyn
     await expect(promoted.page.getByRole('button', { name: /Start game/ })).toBeEnabled();
     await promoted.page.getByRole('button', { name: /Start game/ }).click();
 
-    await expect(promoted.page.getByText('MATCH IN PROGRESS')).toBeVisible();
-    await expect(newcomer.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+    await expect(promoted.page.locator('.table-felt')).toBeVisible();
+    await expect(newcomer.page.locator('.table-felt')).toBeVisible();
     await expect(promoted.page.locator('.hand-card')).toHaveCount(7);
     await expect(newcomer.page.locator('.hand-card')).toHaveCount(7);
   } finally {
@@ -93,7 +93,7 @@ test('a new participant cannot join a room after the host starts the match', asy
     await joinRoom(friend, roomCode);
 
     await host.page.getByRole('button', { name: /Start game/ }).click();
-    await expect(host.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+    await expect(host.page.locator('.table-felt')).toBeVisible();
 
     await submitRoomJoin(visitor.page, visitor.name, roomCode);
     await expect(visitor.page.getByRole('alert')).toContainText(/room|join|started|progress/i);
