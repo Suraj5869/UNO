@@ -1,0 +1,12 @@
+.progression-panel { display:grid; gap:.65rem; min-width:0; margin-top:1rem; padding:1rem; border:1px solid #ffffff24; border-radius:16px; background:#151a32; color:#f6f6ff; }
+.progression-panel h2,.progression-panel h3,.progression-panel p { margin:0; }
+.progression-panel progress { width:100%; accent-color:#a69aff; }
+.progression-panel small { color:#c5c8e5; display:block; }
+.progression-history,.progression-pagination { display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.progression-history { padding:.6rem 0; border-bottom:1px solid #ffffff24; }
+.progression-panel button { color:inherit; background:#333b65; border:1px solid #ffffff30; border-radius:8px; padding:.5rem .8rem; }
+.progression-panel button:disabled { opacity:.45; }
+.match-reward { display:flex; justify-content:center; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.65rem; color:#ffe28a; }
+.progression-level-up { animation:progression-pop .5s ease-out both; font-weight:800; }
+@keyframes progression-pop { from { transform:scale(.7); opacity:0; } to { transform:scale(1); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .progression-level-up { animation:none; } }
