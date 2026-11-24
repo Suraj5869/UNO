@@ -52,7 +52,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
       await host.page.getByRole('button', { name: /Start game/ }).click();
 
       for (const player of players.slice(0, capacity)) {
-        await expect(player.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+        await expect(player.page.locator('.table-felt')).toBeVisible();
         await expect(player.page.locator('.hand-card')).toHaveCount(7);
         await expect(player.page.locator('.opponent')).toHaveCount(capacity - 1);
       }
@@ -72,7 +72,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
       }
 
       // Resolve the active player from the host's own player-specific view.
-      const hostHasTurn = await host.page.getByRole('heading', { name: 'Your turn!' }).count();
+      const hostHasTurn = await host.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count();
       const currentPlayerName = hostHasTurn > 0
         ? host.name
         : (await host.page.locator('.opponent.is-turn strong').textContent())?.trim();
