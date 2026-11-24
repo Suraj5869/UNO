@@ -51,6 +51,9 @@ public sealed class UnoGameState
         TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(TurnDuration);
     }
 
+    public Guid MatchId { get; } = Guid.NewGuid();
+    public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
+    public int CardsPlayed { get; internal set; }
     public IReadOnlyList<UnoPlayer> Players { get; }
 
     public IReadOnlyList<UnoCard> DrawPile =>
