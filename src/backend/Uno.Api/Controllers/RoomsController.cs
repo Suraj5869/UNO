@@ -88,6 +88,18 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         }
     }
 
+    [HttpPost("{code}/cancel-search")]
+    public async Task<IActionResult> CancelSearch(string code, StartRoomRequest request)
+    {
+        try {
+            roomStore.CancelSearch(code,request.AccessToken);
+            await publisher.PublishRoomAsync(code);
+            return NoContent();
+        } catch(UnauthorizedAccessException ex) { return StatusCode(403,Problem("Room permission required",ex.Message,403)); }
+        catch(KeyNotFoundException ex) { return NotFound(Problem("Room not found",ex.Message,404)); }
+        catch(InvalidOperationException ex) { return Conflict(Problem("Cannot cancel search",ex.Message,409)); }
+    }
+
     [HttpGet("{code}")]
     [ProducesResponseType<RoomResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
