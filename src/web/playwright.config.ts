@@ -22,6 +22,10 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    ...(process.env.UNO_CROSS_BROWSER === '1' ? [
+      { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testMatch: /(?:responsive-ui|profile-ui|visual-feedback)\.spec\.ts/ },
+      { name: 'webkit', use: { ...devices['Desktop Safari'] }, testMatch: /(?:responsive-ui|profile-ui|visual-feedback)\.spec\.ts/ },
+    ] : []),
   ],
   webServer: [
     {
