@@ -63,6 +63,16 @@ public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services
                 """, new { UserId=userId, Xp=xp }, tx, cancellationToken:ct));
             await Run("update uno.player_progress set level=@Level where user_id=@UserId",
                 new { UserId=userId, Level=ProgressionPolicy.Level(total) });
+            var start = new DateTimeOffset(match.CompletedAt.Year,match.CompletedAt.Month,1,0,0,0,TimeSpan.Zero);
+            await Run("""
+                insert into uno.player_inventory(user_id,item_id)
+                select @UserId,c.id from uno.cosmetic_items c
+                where c.is_active and c.required_level<=@Level and c.required_season_xp<=(
+                    select coalesce(sum(x.amount),0) from uno.xp_transactions x
+                    join uno.matches m on m.id=x.match_id
+                    where x.user_id=@UserId and m.completed_at>=@Start and m.completed_at<@End)
+                on conflict do nothing
+                """, new { UserId=userId, Level=ProgressionPolicy.Level(total), Start=start, End=start.AddMonths(1) });
         }
         await tx.CommitAsync(ct);
     }
