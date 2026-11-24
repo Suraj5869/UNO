@@ -237,7 +237,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             if (room.Game is { Status: GameStatus.InProgress } activeGame) _abandonedMatches.Add(activeGame.MatchId);
             room.Leave(playerId);
             _accounts.Remove(playerId);
-            if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players.ToArray()) { room.Leave(bot.Id); _bots.Remove(bot.Id); } }
+            if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players) _bots.Remove(bot.Id); _roomsByCode.Remove(room.Code); _tokensByRoomCode.Remove(room.Code); _rematchCandidatesByRoomCode.Remove(room.Code); _matchmakingRooms.Remove(room.Code); }
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
                 candidates.Remove(playerId);
