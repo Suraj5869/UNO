@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Uno.GameEngine;
+using Uno.Api.Progression;
 
 namespace Uno.Api.Rooms;
 
@@ -19,23 +20,43 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<string, Dictionary<Guid, string>> _rematchCandidatesByRoomCode =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<Guid, Guid> _accounts = new();
+    private readonly Dictionary<Guid, CompletedMatch> _pendingResults = new();
+    public CompletedMatch[] PendingResults() { lock (_sync) return _pendingResults.Values.ToArray(); }
+    public void AcknowledgeResult(Guid id) { lock (_sync) _pendingResults.Remove(id); }
+
+    private void CaptureResult(UnoGameRoom room)
+    {
+        if (room.Game is not { Status: GameStatus.Completed } game || _captured.Contains(game.MatchId)) return;
+        var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0);
+        if (winner is null || game.Players.Count < 2) return;
+        var participants = room.Players.Select(p => new ResultPlayer(p.Id,
+            _accounts.TryGetValue(p.Id, out var account) ? account : null,
+            p.DisplayName, p.GamePlayerId == winner.Id)).ToArray();
+        if (!participants.Any(p => p.UserId.HasValue)) return;
+        _captured.Add(game.MatchId);
+        _pendingResults.TryAdd(game.MatchId, new CompletedMatch(game.MatchId, room.Id, room.Code,
+            room.MaximumPlayers, (int)game.RuleSet, game.StartedAt, DateTimeOffset.UtcNow, game.CardsPlayed, participants));
+    }
+
+    private readonly HashSet<Guid> _captured = new();
     private readonly HashSet<string> _matchmakingRooms = new(StringComparer.OrdinalIgnoreCase);
 
     // Initial quick-match preset: two players, Classic Official rules.
-    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) FindMatch(string displayName)
+    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) FindMatch(string displayName, Guid? userId = null)
     {
         lock (_sync)
         {
             var waiting = _roomsByCode.Values.FirstOrDefault(room =>
                 _matchmakingRooms.Contains(room.Code) &&
-                room.Status == UnoRoomStatus.Waiting && room.Players.Count == 1);
+                room.Status == UnoRoomStatus.Waiting && room.Players.Count == 1 && (!userId.HasValue || !room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value)));
             if (waiting is null)
             {
-                var created = Create(new CreateRoomRequest(displayName, 2, UnoRuleSet.Official));
+                var created = Create(new CreateRoomRequest(displayName, 2, UnoRuleSet.Official), userId);
                 _matchmakingRooms.Add(created.Room.Code);
                 return created;
             }
-            var joined = Join(waiting.Code, displayName);
+            var joined = Join(waiting.Code, displayName, userId);
             waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
             _matchmakingRooms.Remove(waiting.Code);
             return joined;
@@ -43,7 +64,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     }
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
-        CreateRoomRequest request)
+        CreateRoomRequest request, Guid? userId = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         var room = new UnoGameRoom(
@@ -60,6 +81,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                     "Room code collision. Please retry room creation.");
             }
 
+            if (userId.HasValue) _accounts.Add(room.CreatorPlayerId, userId.Value);
             _roomsByCode.Add(room.Code, room);
             _tokensByRoomCode.Add(
                 room.Code,
@@ -74,14 +96,17 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Join(
         string code,
-        string displayName)
+        string displayName, Guid? userId = null)
     {
         var accessToken = GenerateAccessToken();
 
         lock (_sync)
         {
             var room = GetByCodeUnsafe(code);
+            if (userId.HasValue && room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value))
+                throw new InvalidOperationException("Account already occupies a seat.");
             var player = room.Join(displayName);
+            if (userId.HasValue) _accounts.Add(player.Id, userId.Value);
             _tokensByRoomCode[room.Code].Add(accessToken, player.Id);
             return (room, player.Id, accessToken);
         }
@@ -110,6 +135,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 var candidates = room.Players
                     .Where(player => player.Id != playerId)
                     .ToDictionary(player => player.Id, player => player.DisplayName);
+                CaptureResult(room);
                 room.PrepareRematch(playerId);
                 _rematchCandidatesByRoomCode[room.Code] = candidates;
             }
@@ -175,7 +201,9 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
                 throw new UnauthorizedAccessException("The room access token is invalid.");
 
+            CaptureResult(room);
             room.Leave(playerId);
+            _accounts.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
                 candidates.Remove(playerId);
@@ -194,7 +222,10 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 
         lock (_sync)
         {
-            return operation(GetByCodeUnsafe(code));
+            var room = GetByCodeUnsafe(code);
+            var result = operation(room);
+            CaptureResult(room);
+            return result;
         }
     }
 
