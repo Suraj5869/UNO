@@ -32,6 +32,96 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void ExpiredTurn_RejectsActionWithoutMutatingCards()
+    {
+        var game = CreateGameWithPlayableNumberCard(out var card);
+        var engine = new UnoGameEngine(new Random(1));
+        var actor = game.CurrentPlayer;
+        var before = AllCards(game);
+        var hand = actor.Hand.ToArray();
+        var top = game.TopDiscard;
+        game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        Assert.Throws<InvalidOperationException>(() => engine.PlayCard(game, actor.Id, card));
+        Assert.Throws<InvalidOperationException>(() => engine.DrawCard(game, actor.Id));
+        Assert.Equal(hand, actor.Hand.ToArray());
+        Assert.Equal(top, game.TopDiscard);
+        Assert.Equal(before, AllCards(game));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DepartureDuringWildPenalty_PreservesCardsAndTransfersPenalty(bool offenderLeaves)
+    {
+        var game = UnoGameFactory.CreateGame(["A", "B", "C"], new Random(19));
+        var engine = new UnoGameEngine(new Random(2));
+        var offender = game.CurrentPlayer;
+        var recipient = game.Players[1];
+        var successor = game.Players[2];
+        // Set up the pending penalty without altering the deck.
+        game.CurrentPlayerIndex = 1;
+        game.PendingDrawType = CardType.WildDrawFour;
+        game.PendingDrawAmount = 4;
+        game.WildDrawFourOffenderIndex = 0;
+        game.WildDrawFourWasIllegal = false;
+        var before = AllCards(game);
+        Assert.True(engine.RemovePlayer(game, offenderLeaves ? offender.Id : recipient.Id));
+        Assert.Equal(before, AllCards(game));
+        Assert.Equal(4, game.PendingDrawAmount);
+        Assert.Equal(offenderLeaves ? recipient.Id : successor.Id, game.CurrentPlayer.Id);
+        if (offenderLeaves)
+        {
+            Assert.False(game.IsWildDrawFourChallengePending);
+            engine.AcceptDrawPenalty(game, recipient.Id);
+        }
+        else
+        {
+            Assert.True(game.IsWildDrawFourChallengePending);
+            engine.AcceptWildDrawFour(game, successor.Id);
+        }
+        Assert.Equal(0, game.PendingDrawAmount);
+        Assert.Equal(before, AllCards(game));
+    }
+
+    [Theory]
+    [InlineData(2, 11, UnoRuleSet.Official)]
+    [InlineData(4, 22, UnoRuleSet.House)]
+    [InlineData(6, 33, UnoRuleSet.Official)]
+    [InlineData(10, 44, UnoRuleSet.House)]
+    public void SeededTurns_ConserveDeckAcrossRules(int seats, int seed, UnoRuleSet rules)
+    {
+        var game = UnoGameFactory.CreateGame(Enumerable.Range(0, seats).Select(i => $"P{i}").ToArray(), new Random(seed), rules);
+        var engine = new UnoGameEngine(new Random(seed));
+        var before = AllCards(game);
+        for (var i = 0; i < 300 && game.Status == GameStatus.InProgress; i++)
+        {
+            var actor = game.CurrentPlayer;
+            if (game.IsWildDrawFourChallengePending) engine.AcceptWildDrawFour(game, actor.Id);
+            else if (game.PendingDrawAmount > 0) engine.AcceptDrawPenalty(game, actor.Id);
+            else
+            {
+                var card = actor.Hand.FirstOrDefault(c =>
+                    (actor.Hand.Count > 1 || c.Type == CardType.Number) &&
+                    (c.Color == CardColor.None || c.Color == game.ActiveColor ||
+                     (c.Type == game.TopDiscard.Type && c.Number == game.TopDiscard.Number)));
+                if (card is not null)
+                {
+                    engine.PlayCard(game, actor.Id, card, card.Color == CardColor.None ? CardColor.Blue : CardColor.None);
+                    if (game.PlayerAwaitingUnoCallId == actor.Id && game.Status == GameStatus.InProgress)
+                        engine.CallUno(game, actor.Id);
+                }
+                else if (game.DrawPile.Count > 0 || game.DiscardPile.Count > 1)
+                {
+                    engine.DrawCard(game, actor.Id);
+                    if (game.CanPassAfterDraw) engine.PassAfterDraw(game, actor.Id);
+                }
+                else engine.AutoResolveTimedOutTurn(game, game.TurnDeadlineUtc);
+            }
+            Assert.Equal(before, AllCards(game));
+        }
+    }
+
+    [Fact]
     public void TenPlayerMatch_ConservesCardsUntilOnePlayerWins()
     {
         var names = Enumerable.Range(1, 10).Select(i => $"Player {i}").ToArray();
