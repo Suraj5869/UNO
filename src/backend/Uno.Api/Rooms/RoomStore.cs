@@ -20,6 +20,35 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<string, Dictionary<Guid, string>> _rematchCandidatesByRoomCode =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<Guid, BotDifficulty> _bots = new();
+    private readonly HashSet<Guid> _practiceMatches = new();
+    public BotDifficulty? GetBot(Guid seatId) { lock (_sync) return _bots.TryGetValue(seatId,out var difficulty) ? difficulty : null; }
+    public void AddBots(string code, string token, int count, BotDifficulty difficulty)
+    {
+        lock (_sync)
+        {
+            var room = GetByCodeUnsafe(code);
+            if (AuthorizeParticipant(code,token)!=room.CreatorPlayerId) throw new UnauthorizedAccessException("Only the host can add bots.");
+            if (!Enum.IsDefined(difficulty) || count<1 || count>room.MaximumPlayers-room.Players.Count || room.Status!=UnoRoomStatus.Waiting)
+                throw new ArgumentException("Invalid bot count, difficulty or room status.");
+            for(var i=0;i<count;i++)
+            {
+                var seat=room.Join($"Bot {room.Players.Count} · {difficulty}");
+                _bots.Add(seat.Id,difficulty);
+            }
+        }
+    }
+    public (UnoGameRoom Room, Guid PlayerId, string AccessToken) CreatePractice(string name,int count,BotDifficulty difficulty,UnoRuleSet rules,Guid? userId)
+    {
+        if(count is <1 or >9 || !Enum.IsDefined(difficulty)) throw new ArgumentException("Choose 1–9 bots and a valid difficulty.");
+        lock(_sync)
+        {
+            var access=Create(new CreateRoomRequest(name,count+1,rules),userId);
+            AddBots(access.Room.Code,access.AccessToken,count,difficulty);
+            StartGame(access.Room.Code,access.AccessToken);
+            return access;
+        }
+    }
     private readonly Dictionary<Guid, Guid> _accounts = new();
     private readonly Dictionary<Guid, CompletedMatch> _pendingResults = new();
     public CompletedMatch[] PendingResults() { lock (_sync) return _pendingResults.Values.ToArray(); }
@@ -29,7 +58,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     {
         if (room.Game is not { Status: GameStatus.Completed } game || _captured.Contains(game.MatchId)) return;
         var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0);
-        if (winner is null || game.Players.Count < 2 || _abandonedMatches.Contains(game.MatchId)) return;
+        if (_practiceMatches.Contains(game.MatchId) || winner is null || game.Players.Count < 2 || _abandonedMatches.Contains(game.MatchId)) return;
         var participants = room.Players.Select(p => new ResultPlayer(p.Id,
             _accounts.TryGetValue(p.Id, out var account) ? account : null,
             p.DisplayName, p.GamePlayerId == winner.Id)).ToArray();
@@ -138,6 +167,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                     .ToDictionary(player => player.Id, player => player.DisplayName);
                 CaptureResult(room);
                 room.PrepareRematch(playerId);
+                foreach(var bot in candidates.Where(p=>_bots.ContainsKey(p.Key)).ToArray()) { room.JoinRematch(bot.Key,bot.Value); candidates.Remove(bot.Key); }
                 _rematchCandidatesByRoomCode[room.Code] = candidates;
             }
             else if (room.Status == UnoRoomStatus.Waiting)
@@ -178,6 +208,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             }
 
             var game = room.StartGame(playerId, dealRandom?.Invoke(room));
+            if(room.Players.Any(p=>_bots.ContainsKey(p.Id))) _practiceMatches.Add(game.MatchId);
             if (_rematchCandidatesByRoomCode.Remove(room.Code, out var candidates))
             {
                 var revokedTokens = _tokensByRoomCode[room.Code]
@@ -206,6 +237,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             if (room.Game is { Status: GameStatus.InProgress } activeGame) _abandonedMatches.Add(activeGame.MatchId);
             room.Leave(playerId);
             _accounts.Remove(playerId);
+            if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players.ToArray()) { room.Leave(bot.Id); _bots.Remove(bot.Id); } }
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
                 candidates.Remove(playerId);
