@@ -54,7 +54,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: '
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
   for (const player of players) {
-    await expect(player.page.getByText('MATCH IN PROGRESS')).toBeVisible();
+    await expect(player.page.locator('.table-felt')).toBeVisible();
   }
   return players;
 }
@@ -62,13 +62,13 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page, ruleSet: '
 async function currentTurnIndex(players: TestPlayer[]): Promise<number> {
   await expect.poll(async () => {
     for (let index = 0; index < players.length; index++) {
-      if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
+      if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) return index;
     }
     return -1;
   }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
 
   for (let index = 0; index < players.length; index++) {
-    if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) return index;
+    if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) return index;
   }
   throw new Error('No player received the active turn.');
 }
@@ -78,7 +78,7 @@ async function waitForTurnChange(players: TestPlayer[], previousActorIndex: numb
   // Scanning for any "Your turn!" heading can return a stale heading from that
   // same page and incorrectly hide the fact that its state has not changed.
   await expect(
-    players[previousActorIndex].page.getByRole('heading', { name: /^Waiting on / }),
+    players[previousActorIndex].page.locator('.opponent.is-turn'),
     'The previous actor should no longer own the active turn',
   ).toBeVisible({ timeout: 15_000 });
 
@@ -150,8 +150,8 @@ test('Skip advances over the next player', async ({ browser, page }) => {
     const result = await playTargetCard(players, specialLabels.skip);
     const skippedIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
     const nextIndex = playerAtOffset(result.actorIndex, 2, result.directionBeforePlay, players.length);
-    await expect(players[skippedIndex].page.getByRole('heading', { name: /Waiting on/ })).toBeVisible();
-    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[skippedIndex].page.locator('.opponent.is-turn')).toBeVisible();
+    await expect(players[nextIndex].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -175,8 +175,8 @@ test('Reverse changes direction and sends play to the previous player', async ({
 
     await players[reverseNextIndex].page.getByRole('button', { name: 'Leave room' }).click();
     const successor = players.find((_, index) => index !== reverseNextIndex && index !== result.actorIndex)!;
-    await expect(successor.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
-    await expect(players[result.actorIndex].page.getByRole('heading', { name: 'Waiting on ' + successor.name })).toBeVisible();
+    await expect(successor.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
+    await expect(players[result.actorIndex].page.locator('.opponent.is-turn strong').filter({ hasText: successor.name })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -188,7 +188,7 @@ test('Wild lets the player choose a color and passes the turn', async ({ browser
     const result = await playTargetCard(players, specialLabels.wild, 'Green');
     await expect(players[result.actorIndex].page.locator('.top-card')).toHaveClass(/selected-wild-color-green/);
     const nextIndex = playerAtOffset(result.actorIndex, 1, result.directionBeforePlay, players.length);
-    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[nextIndex].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -205,7 +205,7 @@ test('Wild Draw Four can be accepted and applies four cards', async ({ browser, 
     await challenger.page.getByRole('button', { name: 'Accept +4' }).click();
     await expect(challenger.page.locator('.hand-card')).toHaveCount(handSize + 4);
     const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
-    await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[followingIndex].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
@@ -226,11 +226,11 @@ for (const fixture of ['legalFour', 'illegalFour']) {
       expect(result.offenderHadMatchingColor).toBe(fixture === 'illegalFour');
       if (result.offenderHadMatchingColor) {
         await expect(offender.page.locator('.hand-card')).toHaveCount(offenderHandSize + 4);
-        await expect(challenger.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+        await expect(challenger.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
       } else {
         await expect(challenger.page.locator('.hand-card')).toHaveCount(challengerHandSize + 6);
         const followingIndex = playerAtOffset(challengerIndex, 1, result.directionBeforePlay, players.length);
-        await expect(players[followingIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+        await expect(players[followingIndex].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
       }
     } finally {
       await closePlayers(players);
@@ -268,7 +268,7 @@ test('House Rules Draw Two creates a penalty, permits same-type stacking, and ca
     await penaltyPlayer.page.getByRole('button', { name: `Draw ${penaltyAmount}` }).click();
     await expect(penaltyPlayer.page.locator('.hand-card')).toHaveCount(handSize + penaltyAmount);
     const nextIndex = playerAtOffset(penaltyPlayerIndex, 1, first.directionBeforePlay, players.length);
-    await expect(players[nextIndex].page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+    await expect(players[nextIndex].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
   } finally {
     await closePlayers(players);
   }
