@@ -64,12 +64,14 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         catch(InvalidOperationException ex) { return Conflict(Problem("Cannot add bots",ex.Message,409)); }
     }
 
+    public sealed record MatchmakingRequest(string DisplayName, int MaximumPlayers = 2, UnoRuleSet RuleSet = UnoRuleSet.Official);
+
     [HttpPost("matchmaking")]
-    public async Task<ActionResult<RoomAccessResponse>> FindMatch(JoinRoomRequest request)
+    public async Task<ActionResult<RoomAccessResponse>> FindMatch(MatchmakingRequest request)
     {
         try
         {
-            var access = roomStore.FindMatch(request.DisplayName, AccountId);
+            var access = roomStore.FindMatch(request.DisplayName, AccountId, request.MaximumPlayers, request.RuleSet);
             var response = roomStore.ExecuteLocked(access.Room.Code, RoomResponse.From);
             await publisher.PublishRoomAsync(access.Room.Code);
             if (response.GameStatus is not null)
@@ -151,6 +153,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
             var room = roomStore.ExecuteLocked(code, currentRoom =>
             {
                 var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
+                if (roomStore.IsSearching(code)) throw new InvalidOperationException("Public queue settings cannot change.");
                 currentRoom.SetRuleSet(playerId, request.RuleSet);
                 return RoomResponse.From(currentRoom);
             });
