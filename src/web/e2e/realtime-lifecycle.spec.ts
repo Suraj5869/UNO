@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 test.setTimeout(150_000);
@@ -15,21 +16,14 @@ async function startTwoPlayerGame(
   ruleSet: 'official' | 'house' = 'official',
 ): Promise<TestPlayer[]> {
   const host: TestPlayer = { name: 'Host', context: hostPage.context(), page: hostPage };
-  await hostPage.goto('/');
-  await hostPage.getByLabel('Your display name').fill(host.name);
-  await hostPage.getByLabel('Maximum players').selectOption('2');
-  await hostPage.getByLabel('Starting rules').selectOption(ruleSet === 'house' ? '1' : '0');
-  await hostPage.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(hostPage, host.name, Number('2'), ruleSet === 'house' ? '1' : '0');
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
   await expect(hostPage.getByText(ruleSet === 'house' ? 'House Rules' : 'Official Rules', { exact: true })).toBeVisible();
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
   const friend = await createPlayer(browser, 'Friend');
-  await friend.page.goto('/');
-  await friend.page.getByLabel('Your display name').fill(friend.name);
-  await friend.page.getByLabel('Room code').fill(roomCode!);
-  await friend.page.getByRole('button', { name: 'Join room' }).click();
+  await submitRoomJoin(friend.page, friend.name, roomCode!);
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
@@ -86,7 +80,7 @@ test('a disconnected active player is timed out, then reconnects with the author
     await expect(disconnected.page.getByRole('heading', { name: 'Waiting on ' + nextPlayer.name })).toBeVisible();
     await expect(nextPlayer.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
   } finally {
-    await Promise.all(players.slice(1).map(player => player.context.close()));
+    await Promise.allSettled(players.slice(1).map(player => player.context.close()));
   }
 });
 
@@ -108,6 +102,6 @@ test('a House Rules Draw Two penalty is automatically drawn and skipped when its
     await expect(offender.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
     await expect(recipient.page.getByText(/Draw penalty/)).toHaveCount(0);
   } finally {
-    await Promise.all(players.slice(1).map(player => player.context.close()));
+    await Promise.allSettled(players.slice(1).map(player => player.context.close()));
   }
 });
