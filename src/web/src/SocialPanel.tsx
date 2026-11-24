@@ -4,7 +4,7 @@ import './social.css';
 type Person={playerId:string;username:string;displayName:string;avatarKey:string;relationship?:'friend'|'incoming'|'outgoing';online?:boolean};
 type Invitation=Person&{invitationId:string;roomCode:string};
 type Overview={friends:Person[];invitations:Invitation[]};
-export default function SocialPanel({room,onJoin}:{room?:{code:string;token:string};onJoin:(code:string)=>Promise<void>;inRoom:boolean}) {
+export default function SocialPanel({room,onJoin,inRoom}:{room?:{code:string;token:string};onJoin:(code:string)=>Promise<void>;inRoom:boolean}) {
  const [open,setOpen]=useState(false);
  const [data,setData]=useState<Overview>({friends:[],invitations:[]});
  const [query,setQuery]=useState('');
@@ -28,7 +28,7 @@ export default function SocialPanel({room,onJoin}:{room?:{code:string;token:stri
  <form onSubmit={e=>{e.preventDefault();void search();}}><label htmlFor="social-search">Find players by username or player ID</label><div className="social-actions"><input id="social-search" value={query} onChange={e=>setQuery(e.target.value)} minLength={3} maxLength={64} required/><button disabled={busy} className="button button-primary">Search</button></div></form>
  {results.map(p=><div className="social-row" key={p.playerId}>{identity(p)}<button disabled={busy||data.friends.some(f=>f.playerId===p.playerId)} onClick={()=>void action('request',{playerId:p.playerId})}>Add friend</button></div>)}
  <h3>Room invitations</h3>{!data.invitations.length&&<small>No pending invitations.</small>}
- {data.invitations.map(i=><div className="social-row" key={i.invitationId}>{identity(i)}<div className="social-actions"><button disabled={busy} onClick={()=>void respond(i,true)}>Join</button><button disabled={busy} onClick={()=>void respond(i,false)}>Decline</button></div></div>)}
+ {data.invitations.map(i=><div className="social-row" key={i.invitationId}>{identity(i)}<div className="social-actions"><button disabled={busy||inRoom} onClick={()=>void respond(i,true)}>Join</button><button disabled={busy} onClick={()=>void respond(i,false)}>Decline</button></div></div>)}
  <h3>Friends and requests</h3>{!data.friends.length&&<small>Find a player to send your first friend request.</small>}
  {data.friends.map(p=><div className="social-row" key={p.playerId}>{identity(p)}<div className="social-actions">{p.relationship==='incoming'&&<button disabled={busy} onClick={()=>void action('accept',{playerId:p.playerId})}>Accept</button>}{p.relationship==='outgoing'&&<small>Pending</small>}{p.relationship==='friend'&&room&&<button disabled={busy} onClick={()=>void action('invite',{playerId:p.playerId,roomCode:room.code,accessToken:room.token})}>Invite</button>}<button disabled={busy} onClick={()=>void action('remove',{playerId:p.playerId})}>{p.relationship==='incoming'?'Decline':p.relationship==='outgoing'?'Cancel':'Remove'}</button></div></div>)}
  </dialog></>;
