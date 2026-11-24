@@ -29,9 +29,9 @@ async function startTwoPlayerGame(
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
-  await expect(hostPage.getByText('MATCH IN PROGRESS')).toBeVisible();
-  await expect(friend.page.getByText('MATCH IN PROGRESS')).toBeVisible();
-  await expect(hostPage.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+  await expect(hostPage.locator('.table-felt')).toBeVisible();
+  await expect(friend.page.locator('.table-felt')).toBeVisible();
+  await expect(hostPage.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
 
   return [
     { name: 'Host', page: hostPage },
@@ -42,7 +42,7 @@ async function startTwoPlayerGame(
 async function currentTurnIndex(players: Array<{ page: Page }>) {
   await expect.poll(async () => {
     for (let index = 0; index < players.length; index++) {
-      if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) {
+      if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) {
         return index;
       }
     }
@@ -50,7 +50,7 @@ async function currentTurnIndex(players: Array<{ page: Page }>) {
   }, { timeout: 15_000 }).toBeGreaterThanOrEqual(0);
 
   for (let index = 0; index < players.length; index++) {
-    if (await players[index].page.getByRole('heading', { name: 'Your turn!' }).count()) {
+    if (await players[index].page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count()) {
       return index;
     }
   }
@@ -80,7 +80,7 @@ async function findPlayableNumberCard(page: Page) {
 async function waitForDrawResolution(page: Page, otherPage: Page) {
   await expect.poll(async () =>
     await page.locator('.pass-decision').count() > 0 ||
-    await otherPage.getByRole('heading', { name: 'Your turn!' }).count() > 0,
+    await otherPage.locator('.my-seat-label').getByText('YOUR TURN', { exact: true }).count() > 0,
   { timeout: 10_000 }).toBeTruthy();
 }
 
@@ -109,7 +109,7 @@ test('a legal number card is played and the other client receives the next turn'
         if (handSize === 1) {
           await expect(current.page.locator('.game-over-overlay')).toBeVisible();
         } else {
-          await expect(other.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+          await expect(other.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
         }
 
         await expect(current.page.locator('.hand-card')).toHaveCount(handSize - 1);
@@ -121,7 +121,7 @@ test('a legal number card is played and the other client receives the next turn'
 
       if (await current.page.locator('.pass-decision').count()) {
         await current.page.getByRole('button', { name: 'Pass' }).click();
-        await expect(other.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+        await expect(other.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
       }
     }
 
@@ -152,7 +152,7 @@ test('drawing cards updates the hand and passing a playable draw advances the tu
 
       if (await current.page.locator('.pass-decision').count()) {
         await current.page.getByRole('button', { name: 'Pass' }).click();
-        await expect(other.page.getByRole('heading', { name: 'Your turn!' })).toBeVisible();
+        await expect(other.page.locator('.my-seat-label').getByText('YOUR TURN', { exact: true })).toBeVisible();
         await expect(current.page.locator('.hand-card')).toHaveCount(originalHandSize + 1);
         return;
       }
