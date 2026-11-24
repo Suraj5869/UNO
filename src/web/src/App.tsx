@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import './styles.css';
 import ProfileMenu from './ProfileMenu';
-import AuthGate, { type Profile } from './AuthGate';
+import AuthGate, { accountRequest, type Profile } from './AuthGate';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
 const HUB = import.meta.env.VITE_SIGNALR_URL || API + '/hubs/uno-room';
@@ -14,7 +14,7 @@ interface Room { snapshotSequence: number; id: string; code: string; maximumPlay
 interface Access { room: Room; playerId: string; accessToken: string }
 interface Card { color: Color; type: number; number: number | null }
 interface GamePlayer { playerId: string; displayName: string; cardCount: number; hand: Card[] | null }
-interface Game { snapshotSequence: number; roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
+interface Game { matchId: string; snapshotSequence: number; roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
 interface GameActionEvent { eventSequence: number; action: 'CardPlayed' | 'CardDrawn' | 'CardsDrawn'; playerId: string; card: Card | null; drawCount: number; drawTargetPlayerId: string | null; occurredAtUtc: string }
 
 const ruleName = (r: RuleSet) => r === 1 ? 'House Rules' : 'Official Rules';
@@ -82,6 +82,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
   }, [error, notice]);
 
   const api = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
+    if (player && init?.method === 'POST' && (path === '/api/rooms' || path === '/api/rooms/matchmaking' || path.endsWith('/join'))) return accountRequest<T>(path, init.body ? JSON.parse(String(init.body)) : undefined, 'POST');
     const response = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
     if (!response.ok) throw new Error(await messageFor(response));
     return response.status === 204 ? undefined as T : await response.json() as T;
