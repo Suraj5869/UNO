@@ -54,6 +54,7 @@ public static class UnoApi
         builder.Services.AddSignalR();
         builder.Services.AddSingleton<RoomRealtimePublisher>();
         builder.Services.AddHostedService<UnoTurnTimeoutService>();
+        builder.Services.AddHostedService<BotTurnService>();
         builder.Services.AddHostedService<Uno.Api.Progression.MatchResultWriter>();
 
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
