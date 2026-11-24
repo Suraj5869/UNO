@@ -28,7 +28,7 @@ test('guest navigation and private room settings remain usable across screen siz
   }
 });
 
-test('game table keeps controls, card counts and turn indicators accessible across screen sizes', async ({ page, browser }) => {
+test('game table keeps controls, card counts and turn indicators accessible across screen sizes', async ({ page, browser }, testInfo) => {
   test.setTimeout(120_000);
   const context = await browser.newContext();
   try {
@@ -49,6 +49,10 @@ test('game table keeps controls, card counts and turn indicators accessible acro
         await element.scrollIntoViewIfNeeded();
         await expect(element).toBeInViewport();
       }
+      // Capture the real rendered table for review; no unapproved golden baseline.
+      await testInfo.attach('table-' + viewport.width + 'x' + viewport.height, {
+        body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png'
+      });
       await expect(page.locator('.draw-pile-button strong')).toHaveText(/^\d+$/);
       await expect(page.locator('.active-color-chip')).toHaveText(/Active color: (Red|Blue|Green|Yellow)/i);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width + 1);
