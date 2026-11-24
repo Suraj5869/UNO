@@ -1,3 +1,4 @@
+import { createPrivateRoom, submitRoomJoin } from './room-setup';
 import { reachHostUno } from './number-turns';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -13,19 +14,13 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 async function startTwoPlayerGame(browser: Browser, hostPage: Page): Promise<TestPlayer[]> {
   const host: TestPlayer = { name: 'Host', context: hostPage.context(), page: hostPage };
   await hostPage.setExtraHTTPHeaders({ 'X-Test-Deal': 'numbers' });
-  await hostPage.goto('/');
-  await hostPage.getByLabel('Your display name').fill(host.name);
-  await hostPage.getByLabel('Maximum players').selectOption('2');
-  await hostPage.getByRole('button', { name: /Create private room/ }).click();
+  await createPrivateRoom(hostPage, host.name, Number('2'));
   await expect(hostPage.getByRole('heading', { name: /Room/ })).toBeVisible();
   const roomCode = (await hostPage.locator('.code-inline').textContent())?.trim();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
   const friend = await createPlayer(browser, 'Friend');
-  await friend.page.goto('/');
-  await friend.page.getByLabel('Your display name').fill(friend.name);
-  await friend.page.getByLabel('Room code').fill(roomCode!);
-  await friend.page.getByRole('button', { name: 'Join room' }).click();
+  await submitRoomJoin(friend.page, friend.name, roomCode!);
   await expect(friend.page.getByRole('heading', { name: /Room/ })).toBeVisible();
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();
@@ -73,7 +68,7 @@ test('the winner sees the match result and both players can opt into a fresh rem
       await expect(player.page.locator('.hand-card')).toHaveCount(7);
     }
   } finally {
-    await Promise.all(players.slice(1).map(player => player.context.close()));
+    await Promise.allSettled(players.slice(1).map(player => player.context.close()));
   }
 });
 
