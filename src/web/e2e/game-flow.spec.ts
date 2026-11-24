@@ -16,9 +16,9 @@ test('host creates a room, friend joins, and host starts a match', async ({ brow
   await expect(page.getByRole('heading', { name: /Players 2\/2/ })).toBeVisible();
 
   await page.getByRole('button', { name: /Start game/ }).click();
-  await expect(page.getByText('MATCH IN PROGRESS')).toBeVisible();
+  await expect(page.locator('.table-felt')).toBeVisible();
   await expect(page.locator('.hand-card')).toHaveCount(7);
-  await expect(friendPage.getByText('MATCH IN PROGRESS')).toBeVisible();
+  await expect(friendPage.locator('.table-felt')).toBeVisible();
 
   await friendContext.close();
 });
