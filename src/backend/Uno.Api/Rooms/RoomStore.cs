@@ -112,6 +112,17 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         }
     }
 
+    public bool CanInvite(string code,string token,Guid accountId)
+    {
+        lock (_sync)
+        {
+            var room=GetByCodeUnsafe(code);
+            var seat=AuthorizeParticipant(code,token);
+            return _accounts.GetValueOrDefault(seat)==accountId && room.Status==UnoRoomStatus.Waiting
+                && !_matchmakingRooms.Contains(room.Code) && room.Players.Count<room.MaximumPlayers;
+        }
+    }
+
     public bool IsSearching(string code) { lock (_sync) return _matchmakingRooms.Contains(code); }
 
     public (UnoGameRoom Room, Guid PlayerId, string AccessToken) Create(
