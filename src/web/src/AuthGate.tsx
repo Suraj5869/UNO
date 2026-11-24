@@ -19,7 +19,7 @@ function publishSession(value: Session | null) {
   window.dispatchEvent(new Event(SESSION_EVENT));
 }
 async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
-  const response = await fetch(API + '/api/auth/' + path, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
@@ -46,6 +46,7 @@ function rotate(s: Session): Promise<Session> {
   }
   return rotating;
 }
+export function hasAccountSession() { return !!read(); }
 export async function accountRequest<T>(path: string, body?: unknown, method?: string): Promise<T> {
   let current = read(); if (!current) throw new Error('Please sign in again.');
   if (current.expiresAt <= Date.now() + 60000) current = await rotate(current);
