@@ -2,7 +2,7 @@ import LoadingScreen from './LoadingScreen';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
-export interface Profile { userId: string; publicPlayerId: string; email: string; username: string; displayName: string; avatarKey: string; level: number; totalXp: number; matchesPlayed: number; wins: number }
+export interface Profile { userId: string; publicPlayerId: string; email: string; username: string; displayName: string; avatarKey: string; cardBackKey?: string; tableThemeKey?: string; level: number; totalXp: number; matchesPlayed: number; wins: number }
 interface Session { accessToken: string; refreshToken: string; expiresIn: number; player: Profile; expiresAt: number }
 const KEY = 'uno-account-session';
 function read(): Session | null { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } }
