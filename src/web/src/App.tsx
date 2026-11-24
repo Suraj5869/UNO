@@ -195,21 +195,38 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
     return () => { active = false; setHub(old => old === connection ? null : old); void connection.stop(); };
   }, [access?.playerId, access?.room.code, access?.accessToken, refresh]);
 
+  // A ref closes the gap before React commits disabled button state.
+  const pendingAction = useRef<symbol | null>(null);
+  const actionAccess = useRef(access);
+  actionAccess.current = access;
   const act = useCallback(async (method: string, ...args: unknown[]) => {
+    if (pendingAction.current) return;
     if (!hub || hub.state !== 'Connected' || !access) { setError('Realtime connection is not ready. Wait a moment and retry.'); return; }
+    const ticket = Symbol(method);
+    pendingAction.current = ticket;
+    const stillInRoom = () => actionAccess.current?.accessToken === access.accessToken
+      && actionAccess.current?.room.code === access.room.code;
+    setBusy(true);
     setWildIndex(null);
     setError(''); setNotice('');
     try {
       await hub.invoke(method, access.room.code, access.accessToken, ...args);
-      if (method === 'CallUno') {
-        // The server broadcasts UnoCalled to the caller as well.
+    } catch (e) {
+      if (stillInRoom()) setError(e instanceof Error ? e.message : 'That action was rejected.');
+    } finally {
+      // Reconcile the hand before allowing another index-based action.
+      try {
+        if (stillInRoom()) {
+          const latest = await hub.invoke<Game>('GetGameState', access.room.code, access.accessToken);
+          if (stillInRoom()) acceptGame(latest);
+        }
+      } catch { /* Reconnect and broadcast handlers also reconcile state. */ }
+      if (pendingAction.current === ticket) {
+        pendingAction.current = null;
+        if (stillInRoom()) setBusy(false);
       }
     }
-    catch (e) {
-      setError(e instanceof Error ? e.message : 'That action was rejected.');
-      try { acceptGame(await hub.invoke<Game>('GetGameState', access.room.code, access.accessToken)); } catch { /* Keep original error. */ }
-    }
-  }, [access, hub, game]);
+  }, [access, hub, acceptGame]);
 
   const changeRule = async (value: RuleSet) => {
     if (!access || !room) return;
@@ -262,6 +279,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
     await hub?.stop().catch(() => undefined);
     sessionStorage.removeItem('uno-room-access');
     sessionStorage.removeItem('uno-quick-match'); setQuickMatch(false); setEntryMode('home');
+    pendingAction.current = null; setBusy(false);
     setAccess(null); setRoom(null); setGame(null); setHub(null); completedGameRef.current = false; lastRoomSequence.current = 0; lastGameSequence.current = 0;
     setError(leaveError);
     setNotice(leaveError ? '' : 'You left the room.');
