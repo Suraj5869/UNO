@@ -27,6 +27,7 @@ public sealed record GameStateResponse(
     Guid? PlayerAwaitingUnoCallId,
     IReadOnlyList<GamePlayerResponse> Players)
 {
+    public Guid MatchId { get; init; }
     public long SnapshotSequence { get; init; }
 
     public static GameStateResponse From(UnoGameRoom room, Guid viewerPlayerId)
@@ -77,7 +78,7 @@ public sealed record GameStateResponse(
                     isViewer
                         ? gamePlayer.Hand.Select(UnoCardResponse.From).ToArray()
                         : null);
-            }).ToArray()) { SnapshotSequence = SnapshotOrder.Next() };
+            }).ToArray()) { SnapshotSequence = SnapshotOrder.Next(), MatchId = game.MatchId };
     }
 }
 
