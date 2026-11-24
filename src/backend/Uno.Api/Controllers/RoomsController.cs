@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Uno.Api.Rooms;
 
 namespace Uno.Api.Controllers;
@@ -7,6 +8,8 @@ namespace Uno.Api.Controllers;
 [Route("api/rooms")]
 public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher publisher) : ControllerBase
 {
+    private Guid? AccountId => Guid.TryParse(User.FindFirstValue("sub"), out var id) && User.Identity?.IsAuthenticated == true ? id : null;
+
     [HttpPost]
     [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -14,7 +17,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
-            var access = roomStore.Create(request);
+            var access = roomStore.Create(request, AccountId);
             var response = new RoomAccessResponse(
                 roomStore.ExecuteLocked(access.Room.Code, currentRoom => RoomResponse.From(currentRoom)),
                 access.PlayerId,
@@ -39,7 +42,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
-            var access = roomStore.FindMatch(request.DisplayName);
+            var access = roomStore.FindMatch(request.DisplayName, AccountId);
             var response = roomStore.ExecuteLocked(access.Room.Code, RoomResponse.From);
             await publisher.PublishRoomAsync(access.Room.Code);
             if (response.GameStatus is not null)
@@ -84,7 +87,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
-            var access = roomStore.Join(code, request.DisplayName);
+            var access = roomStore.Join(code, request.DisplayName, AccountId);
             var roomResponse = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
             await publisher.PublishRoomAsync(code);
             return Ok(new RoomAccessResponse(
