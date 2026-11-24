@@ -29,7 +29,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     {
         if (room.Game is not { Status: GameStatus.Completed } game || _captured.Contains(game.MatchId)) return;
         var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0);
-        if (winner is null || game.Players.Count < 2) return;
+        if (winner is null || game.Players.Count < 2 || _abandonedMatches.Contains(game.MatchId)) return;
         var participants = room.Players.Select(p => new ResultPlayer(p.Id,
             _accounts.TryGetValue(p.Id, out var account) ? account : null,
             p.DisplayName, p.GamePlayerId == winner.Id)).ToArray();
@@ -40,6 +40,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     }
 
     private readonly HashSet<Guid> _captured = new();
+    private readonly HashSet<Guid> _abandonedMatches = new();
     private readonly HashSet<string> _matchmakingRooms = new(StringComparer.OrdinalIgnoreCase);
 
     // Initial quick-match preset: two players, Classic Official rules.
@@ -202,6 +203,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 throw new UnauthorizedAccessException("The room access token is invalid.");
 
             CaptureResult(room);
+            if (room.Game is { Status: GameStatus.InProgress } activeGame) _abandonedMatches.Add(activeGame.MatchId);
             room.Leave(playerId);
             _accounts.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
