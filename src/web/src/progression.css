@@ -10,3 +10,30 @@
 .progression-level-up { animation:progression-pop .5s ease-out both; font-weight:800; }
 @keyframes progression-pop { from { transform:scale(.7); opacity:0; } to { transform:scale(1); opacity:1; } }
 @media(prefers-reduced-motion:reduce) { .progression-level-up { animation:none; } }
+
+/* Player Hub: scroll the inner content, not the rounded dialog shell. */
+dialog.collection-screen[open]{display:flex;flex-direction:column;overflow:hidden;max-height:94dvh}
+.collection-screen .collection-header{flex:0 0 auto;box-sizing:border-box}
+.collection-screen .collection-close{border:0;background:transparent;box-shadow:none}
+.collection-screen .collection-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#7779cf transparent;align-items:start;box-sizing:border-box}
+.collection-screen .collection-body::-webkit-scrollbar{width:6px}
+.collection-screen .collection-body::-webkit-scrollbar-track{background:transparent}
+.collection-screen .collection-body::-webkit-scrollbar-thumb{background:#7779cf;border-radius:8px}
+.collection-screen .collection-inventory{min-width:0;align-self:stretch}
+.hub-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid #7779cf44}
+.hub-tabs button{font:inherit;font-weight:500;border:0;background:transparent;color:#fff7e8;padding:10px 14px;border-radius:10px;cursor:pointer}
+.hub-tabs button[aria-pressed=true]{background:#ffca27;color:#17194f;font-weight:700}
+.hub-tabs button:focus-visible{outline:2px solid #ffca27;outline-offset:3px}
+.hub-overview,.hub-history{display:grid;gap:14px;min-width:0}
+.hub-overview h3,.hub-history h3{margin:0;font-size:19px;font-weight:600}
+.hub-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.hub-stat-grid>div,.hub-stat-card,.hub-history-row{background:#302f70;border-radius:12px;padding:14px;display:grid;gap:8px;min-width:0}
+.hub-stat-grid strong{color:#ffca27;font-size:25px}
+.hub-stat-grid span,.hub-stat-card small,.hub-history-row small{color:#c7c7ef}
+.hub-xp-track{height:8px;background:#17194f;border-radius:8px;overflow:hidden}
+.hub-xp-track span{display:block;height:100%;background:#ffca27;border-radius:8px}
+.hub-history-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.hub-history-row>div{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere}
+.hub-history-xp{color:#ffca27;white-space:nowrap}
+.hub-win{color:#7de3bc}.hub-loss{color:#ff9ba4}
+@media(max-width:700px){.collection-screen .collection-body{display:grid;grid-template-columns:minmax(0,1fr)}.hub-tabs button{padding:9px 10px}.hub-stat-grid>div,.hub-stat-card,.hub-history-row{padding:12px}}
