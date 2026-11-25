@@ -1,12 +1,12 @@
 begin;
 create table if not exists uno.friendships (
- low_id uuid not null references uno.users(id) on delete cascade,
- high_id uuid not null references uno.users(id) on delete cascade,
+ id uuid primary key default gen_random_uuid(),
  requester_id uuid not null references uno.users(id) on delete cascade,
- accepted boolean not null default false,
+ recipient_id uuid not null references uno.users(id) on delete cascade,
+ status text not null default 'pending',
  created_at timestamptz not null default now(),
- primary key(low_id,high_id),
- check(low_id<high_id), check(requester_id in(low_id,high_id))
+ responded_at timestamptz,
+ check(requester_id<>recipient_id)
 );
 create table if not exists uno.social_presence (
  user_id uuid primary key references uno.users(id) on delete cascade,
