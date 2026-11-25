@@ -10,6 +10,12 @@ namespace Uno.Api.Hubs;
 /// </summary>
 public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publisher) : Hub
 {
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        roomStore.Disconnected(Context.ConnectionId);
+        return base.OnDisconnectedAsync(exception);
+    }
+
     public async Task<RoomResponse> JoinRoom(string code, string accessToken)
     {
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
@@ -22,7 +28,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         {
             var joined = roomStore.ExecuteLocked(code, room =>
             {
-                roomStore.AuthorizeParticipant(code, accessToken);
+                roomStore.Connected(code, accessToken, Context.ConnectionId);
                 return (Room: RoomResponse.From(room), GameState: room.Game is null
                     ? null : GameStateResponse.From(room, playerId));
             });
@@ -190,7 +196,9 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         var gameAction = roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            var wasCurrent = room.Game is {} before && before.CurrentPlayer.Id == GetGamePlayerId(room,playerId);
             action(room, playerId);
+            if (wasCurrent && room.Game is {} game) roomStore.MarkParticipation(game.MatchId,playerId);
             var payload = actionEventFactory?.Invoke(playerId);
             return payload is null ? null : publisher.CaptureGameAction(code, payload);
         });
