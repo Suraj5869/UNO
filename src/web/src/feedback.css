@@ -16,3 +16,5 @@
 .game-settings-dialog .settings-volume input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;border:0;border-radius:50%;background:#ffca28;margin-top:-4px;box-shadow:none}
 .game-settings-dialog .settings-volume input[type=range]::-moz-range-track{height:8px;border:0;border-radius:8px;background:linear-gradient(to right,#ffca28 0%,#ffca28 var(--volume-fill,0%),#55547f var(--volume-fill,0%),#55547f 100%)}
 .game-settings-dialog .settings-volume input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:#ffca28}
+
+.settings-gear{border:0;background:transparent;box-shadow:none}.settings-gear:hover{background:#ffffff12}
