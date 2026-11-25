@@ -2,3 +2,5 @@
 .social-person.social-offline strong{color:#8993ae;font-weight:500}.social-person.social-offline .social-avatar{opacity:.55}
 
 .social-person .social-level{font-size:11px;line-height:1.4;margin-top:2px;color:#aab5d1}.social-person.social-offline .social-level{color:#77819a}
+
+.social-trigger,.social-dialog header .social-icon{border:0;background:transparent;box-shadow:none}.social-trigger:hover,.social-dialog header .social-icon:hover{background:#ffffff12}
