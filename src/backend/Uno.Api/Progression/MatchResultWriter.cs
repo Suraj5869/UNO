@@ -4,7 +4,7 @@ using Uno.Api.Rooms;
 
 namespace Uno.Api.Progression;
 
-public sealed record ResultPlayer(Guid PlayerId, Guid? UserId, string DisplayName, bool Won, bool Abandoned = false);
+public sealed record ResultPlayer(Guid PlayerId, Guid? UserId, string DisplayName, bool Won, bool Abandoned = false, bool Participated = true);
 public sealed record CompletedMatch(Guid Id, Guid RoomId, string Code, int MaximumPlayers, int RuleSet,
     DateTimeOffset StartedAt, DateTimeOffset CompletedAt, int CardsPlayed, ResultPlayer[] Players, string Mode = "rooms", int? Difficulty = null, bool Abandoned = false);
 
@@ -48,7 +48,7 @@ public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services
                 values (@MatchId,@PlayerId,@UserId,@DisplayName,@Position,@Abandoned)
                 """, new { MatchId=match.Id, player.PlayerId, player.UserId, player.DisplayName, Position=player.Won ? (int?)1 : null, Abandoned=match.Abandoned || player.Abandoned });
             if (player.UserId is not Guid userId) continue;
-            var xp = match.Abandoned || player.Abandoned || match.CardsPlayed < 7 ? 0 : match.Mode == "bots" ? (5 + 5 * Math.Clamp(match.Difficulty ?? 0, 0, 2)) * (player.Won ? 2 : 1) : ProgressionPolicy.Award(player.Won, true, match.CardsPlayed);
+            var xp = match.Abandoned || player.Abandoned || !player.Participated || match.CardsPlayed < 7 ? 0 : match.Mode == "bots" ? (5 + 5 * Math.Clamp(match.Difficulty ?? 0, 0, 2)) * (player.Won ? 2 : 1) : ProgressionPolicy.Award(player.Won, true, match.CardsPlayed);
             await Run("""
                 update uno.player_statistics set matches_played=matches_played+1,
                 wins=wins+@Win where user_id=@UserId
