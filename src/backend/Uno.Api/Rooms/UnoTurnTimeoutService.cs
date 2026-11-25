@@ -7,6 +7,11 @@ public sealed class UnoTurnTimeoutService(RoomStore roomStore, RoomRealtimePubli
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(500));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            foreach (var expired in roomStore.ExpireDisconnected())
+            {
+                try { await publisher.PublishRoomAsync(expired); await publisher.PublishGameStateAsync(expired); }
+                catch (Exception ex) { logger.LogWarning(ex,"Failed to publish expired seat in {RoomCode}",expired); }
+            }
             foreach (var code in roomStore.GetActiveRoomCodes())
             {
                 try
@@ -14,7 +19,7 @@ public sealed class UnoTurnTimeoutService(RoomStore roomStore, RoomRealtimePubli
                     var timeoutAction = roomStore.ExecuteLocked(code, room =>
                     {
                         var game = room.Game;
-                        if (game is null) return (Resolved: false, Action: (GameActionEvent?)null);
+                        if (game is null || game.Status != GameStatus.InProgress) return (Resolved: false, Action: (GameActionEvent?)null);
 
                         var currentGamePlayerId = game.CurrentPlayer.Id;
                         var before = game.CurrentPlayer.Hand.Count;
