@@ -21,7 +21,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<Guid, BotDifficulty> _bots = new();
-    private readonly HashSet<Guid> _practiceMatches = new();
+    private readonly Dictionary<Guid,int> _practiceMatches = new();
+    private readonly HashSet<Guid> _rankedMatches = new();
     public BotDifficulty? GetBot(Guid seatId) { lock (_sync) return _bots.TryGetValue(seatId,out var difficulty) ? difficulty : null; }
     public void AddBots(string code, string token, int count, BotDifficulty difficulty)
     {
@@ -55,22 +56,21 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     public CompletedMatch[] PendingResults() { lock (_sync) return _pendingResults.Values.ToArray(); }
     public void AcknowledgeResult(Guid id) { lock (_sync) _pendingResults.Remove(id); }
 
-    private void CaptureResult(UnoGameRoom room)
+    private void CaptureResult(UnoGameRoom room, bool abandoned = false)
     {
-        if (room.Game is not { Status: GameStatus.Completed } game || _captured.Contains(game.MatchId)) return;
+        if (room.Game is not {} game || (!abandoned && game.Status != GameStatus.Completed) || _captured.Contains(game.MatchId)) return;
         var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0);
-        if (_practiceMatches.Contains(game.MatchId) || winner is null || game.Players.Count < 2 || _abandonedMatches.Contains(game.MatchId)) return;
+        if (!abandoned && (winner is null || game.Players.Count < 2)) return;
         var participants = room.Players.Select(p => new ResultPlayer(p.Id,
             _accounts.TryGetValue(p.Id, out var account) ? account : null,
-            p.DisplayName, p.GamePlayerId == winner.Id)).ToArray();
+            p.DisplayName, !abandoned && p.GamePlayerId == winner?.Id)).ToArray();
         if (!participants.Any(p => p.UserId.HasValue)) return;
         _captured.Add(game.MatchId);
         _pendingResults.TryAdd(game.MatchId, new CompletedMatch(game.MatchId, room.Id, room.Code,
-            room.MaximumPlayers, (int)game.RuleSet, game.StartedAt, DateTimeOffset.UtcNow, game.CardsPlayed, participants));
+            room.MaximumPlayers, (int)game.RuleSet, game.StartedAt, DateTimeOffset.UtcNow, game.CardsPlayed, participants, _rankedMatches.Contains(game.MatchId) ? "ranked" : _practiceMatches.ContainsKey(game.MatchId) ? "bots" : "rooms", _practiceMatches.TryGetValue(game.MatchId,out var difficulty) ? difficulty : null, abandoned));
     }
 
     private readonly HashSet<Guid> _captured = new();
-    private readonly HashSet<Guid> _abandonedMatches = new();
     private readonly HashSet<string> _matchmakingRooms = new(StringComparer.OrdinalIgnoreCase);
 
     // Waiting public rooms are FIFO queues for an exact player count and rule set.
@@ -96,7 +96,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             var joined = Join(waiting.Code, displayName, userId, publicQueue: true);
             if (waiting.Players.Count == maximumPlayers)
             {
-                waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
+                var ranked = waiting.StartGame(waiting.CreatorPlayerId, dealRandom?.Invoke(waiting));
+                _rankedMatches.Add(ranked.MatchId);
                 _matchmakingRooms.Remove(waiting.Code);
             }
             return joined;
@@ -242,7 +243,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 
             if (_matchmakingRooms.Contains(room.Code)) throw new InvalidOperationException("Public matches start automatically when full.");
             var game = room.StartGame(playerId, dealRandom?.Invoke(room));
-            if(room.Players.Any(p=>_bots.ContainsKey(p.Id))) _practiceMatches.Add(game.MatchId);
+            if(room.Players.Count(p=>!_bots.ContainsKey(p.Id))==1 && room.Players.Any(p=>_bots.ContainsKey(p.Id))) _practiceMatches[game.MatchId]=room.Players.Where(p=>_bots.ContainsKey(p.Id)).Min(p=>(int)_bots[p.Id]);
             if (_rematchCandidatesByRoomCode.Remove(room.Code, out var candidates))
             {
                 var revokedTokens = _tokensByRoomCode[room.Code]
@@ -268,7 +269,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 throw new UnauthorizedAccessException("The room access token is invalid.");
 
             CaptureResult(room);
-            if (room.Game is { Status: GameStatus.InProgress } activeGame) _abandonedMatches.Add(activeGame.MatchId);
+            if (room.Game is { Status: GameStatus.InProgress }) CaptureResult(room, abandoned:true);
             room.Leave(playerId);
             _accounts.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
