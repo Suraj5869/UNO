@@ -24,6 +24,37 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<Guid,int> _practiceMatches = new();
     private readonly HashSet<Guid> _rankedMatches = new();
     private readonly Dictionary<Guid,List<ResultPlayer>> _departed = new();
+    private readonly Dictionary<Guid,HashSet<Guid>> _participation = new();
+    private readonly Dictionary<Guid,(string Code,string Token,string? Connection,DateTimeOffset? Expires)> _presence = new();
+
+    public void MarkParticipation(Guid matchId, Guid seat)
+    {
+        lock (_sync) { if (!_participation.TryGetValue(matchId,out var seats)) _participation[matchId]=seats=new(); seats.Add(seat); }
+    }
+    public void Connected(string code,string token,string connection)
+    {
+        lock (_sync) { var seat=AuthorizeParticipant(code,token); _presence[seat]=(code,token,connection,null); }
+    }
+    public void Disconnected(string connection)
+    {
+        lock (_sync) foreach(var entry in _presence.Where(p=>p.Value.Connection==connection).ToArray())
+            _presence[entry.Key]=(entry.Value.Code,entry.Value.Token,null,DateTimeOffset.UtcNow.AddSeconds(60));
+    }
+    public string[] ExpireDisconnected()
+    {
+        lock (_sync)
+        {
+            var changed=new HashSet<string>();
+            foreach(var entry in _presence.Where(p=>p.Value.Expires is {} expires && expires<=DateTimeOffset.UtcNow).ToArray())
+            {
+                _presence.Remove(entry.Key);
+                try { Leave(entry.Value.Code,entry.Value.Token); changed.Add(entry.Value.Code); }
+                catch (UnauthorizedAccessException) { }
+                catch (KeyNotFoundException) { }
+            }
+            return changed.ToArray();
+        }
+    }
     public BotDifficulty? GetBot(Guid seatId) { lock (_sync) return _bots.TryGetValue(seatId,out var difficulty) ? difficulty : null; }
     public void AddBots(string code, string token, int count, BotDifficulty difficulty)
     {
@@ -64,8 +95,9 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         if (!abandoned && (winner is null)) return;
         var participants = room.Players.Select(p => new ResultPlayer(p.Id,
             _accounts.TryGetValue(p.Id, out var account) ? account : null,
-            p.DisplayName, !abandoned && p.GamePlayerId == winner?.Id)).Concat(_departed.GetValueOrDefault(game.MatchId) ?? new List<ResultPlayer>()).ToArray();
+            p.DisplayName, !abandoned && p.GamePlayerId == winner?.Id, false, _participation.GetValueOrDefault(game.MatchId)?.Contains(p.Id)==true)).Concat(_departed.GetValueOrDefault(game.MatchId) ?? new List<ResultPlayer>()).ToArray();
         _departed.Remove(game.MatchId);
+        _participation.Remove(game.MatchId);
         if (!participants.Any(p => p.UserId.HasValue)) return;
         _captured.Add(game.MatchId);
         _pendingResults.TryAdd(game.MatchId, new CompletedMatch(game.MatchId, room.Id, room.Code,
@@ -279,6 +311,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             room.Leave(playerId);
             if (room.Game is not null) CaptureResult(room, abandoned:room.Players.All(p=>_bots.ContainsKey(p.Id)));
             _accounts.Remove(playerId);
+            _presence.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players) _bots.Remove(bot.Id); _matchmakingRooms.Remove(room.Code); }
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
