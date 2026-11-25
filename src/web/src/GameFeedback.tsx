@@ -1,4 +1,4 @@
-import {useEffect,useRef,useSyncExternalStore,useState} from 'react';
+import {useEffect,useRef,useSyncExternalStore,useState,type CSSProperties} from 'react';
 import {getAudioSettings,subscribeAudio,setAudioSettings,unlockAudio,setMusicPlaying,refreshAudioVisibility,playCue,type Cue} from './gameAudio';
 import './feedback.css';
 type Snapshot={matchId:string;gameStatus:number;viewerPlayerId:string;currentPlayerId:string;turnDeadlineUtc:string;players:{playerId:string;cardCount:number}[]};
@@ -42,7 +42,7 @@ export function GameSettings({onClose}:{onClose:()=>void}){
  const dialog=useRef<HTMLDialogElement>(null);
  useEffect(()=>{const d=dialog.current;d?.showModal();return()=>d?.close();},[]);
  const toggle=(label:string,description:string,checked:boolean,change:(v:boolean)=>void)=><label className="settings-toggle-row"><span><strong>{label}</strong><small>{description}</small></span><input type="checkbox" role="switch" checked={checked} onChange={e=>change(e.target.checked)}/></label>;
- const volume=(label:string,value:number,enabled:boolean,change:(v:number)=>void)=><label className="settings-volume"><span>{label}<output>{Math.round(value*100)}%</output></span><input aria-label={label} type="range" min="0" max="1" step=".05" disabled={!enabled} value={value} onChange={e=>change(Number(e.target.value))}/></label>;
+ const volume=(label:string,value:number,enabled:boolean,change:(v:number)=>void)=><label className="settings-volume"><span>{label}<output>{Math.round(value*100)}%</output></span><input aria-label={label} type="range" style={{"--volume-fill":(value*100)+"%"} as CSSProperties} min="0" max="1" step=".05" disabled={!enabled} value={value} onChange={e=>change(Number(e.target.value))}/></label>;
  return <dialog ref={dialog} className="game-settings-dialog" aria-labelledby="game-settings-title" onCancel={e=>{e.preventDefault();onClose();}} onClick={e=>{if(e.target===dialog.current)onClose();}}>
  <div className="game-settings-inner"><header><h2 id="game-settings-title">Game settings</h2><button className="settings-gear" aria-label="Close game settings" onClick={onClose}>×</button></header>
  <nav className="settings-tabs" aria-label="Settings categories"><button aria-pressed={tab==='audio'} onClick={()=>setTab('audio')}>Audio</button><button aria-pressed={tab==='visual'} onClick={()=>setTab('visual')}>Visuals</button></nav>
