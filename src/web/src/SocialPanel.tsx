@@ -1,7 +1,7 @@
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { accountRequest } from './AuthGate';
 import './social.css';
-type Person={playerId:string;username:string;displayName:string;avatarKey:string;relationship?:'friend'|'incoming'|'outgoing';online?:boolean};
+type Person={playerId:string;username:string;displayName:string;avatarKey:string;level?:number;relationship?:'friend'|'incoming'|'outgoing';online?:boolean};
 type Invitation=Person&{invitationId:string;roomCode:string};
 type Overview={friends:Person[];invitations:Invitation[]};
 export default function SocialPanel({room,onJoin,inRoom}:{room?:{code:string;token:string};onJoin:(code:string)=>Promise<void>;inRoom:boolean}) {
@@ -25,7 +25,7 @@ export default function SocialPanel({room,onJoin,inRoom}:{room?:{code:string;tok
  const outgoing=data.friends.filter(p=>p.relationship==='outgoing');
  const friends=data.friends.filter(p=>p.relationship==='friend').sort((a,b)=>Number(!!b.online)-Number(!!a.online)||a.displayName.localeCompare(b.displayName));
  const icon=(kind:string)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{kind==='friends'?<><circle cx="9" cy="7" r="3"/><path d="M2 20v-2a7 7 0 0 1 14 0v2M16 4a3 3 0 0 1 0 6M18 13a5 5 0 0 1 4 5v2"/></>:kind==='requests'?<><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m3 7 9 6 9-6"/></>:<><circle cx="9" cy="7" r="3"/><path d="M2 20v-2a7 7 0 0 1 14 0v2M19 8v6m-3-3h6"/></>}</svg>;
- const identity=(p:Person)=><span className={"social-person"+(p.relationship==="friend"&&!p.online?" social-offline":"")}><span className="social-avatar"><span className="profile-circle" data-cosmetic={p.avatarKey}>{p.displayName.slice(0,1).toUpperCase()}</span></span><span><strong>{p.displayName}</strong>{p.relationship!=='friend'&&<small>@{p.username}</small>}</span></span>;
+ const identity=(p:Person)=><span className={"social-person"+(p.relationship==="friend"&&!p.online?" social-offline":"")}><span className="social-avatar"><span className="profile-circle" data-cosmetic={p.avatarKey}>{p.displayName.slice(0,1).toUpperCase()}</span></span><span><strong>{p.displayName}</strong><small className="social-level">{p.level!=null?'Level '+p.level:''}{p.relationship!=='friend'?' · @'+p.username:''}</small></span></span>;
  const invitation=data.invitations[0];
  const invitationCard=invitation&&<section className="social-invite-card" role="status"><div className="social-invite-kicker">✦ GAME INVITATION</div>{identity(invitation)}<p>Invited you to play UNO!</p>{inRoom&&<small>Leave your current room before joining.</small>}{inviteError&&<p role="alert">{inviteError}</p>}<div className="social-actions"><button disabled={busy||inRoom} onClick={()=>void respond(invitation,true)}>Join game</button><button disabled={busy} onClick={()=>void respond(invitation,false)}>Decline</button></div></section>;
  return <><button className="social-trigger" onClick={()=>{setTab('friends');setOpen(true);}} aria-label={'Friends'+(incoming.length?' · '+incoming.length+' new requests':'')} title="Friends">{icon('friends')}{incoming.length>0&&<i className="social-dot"/>}</button>
