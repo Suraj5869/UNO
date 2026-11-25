@@ -37,14 +37,14 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         await using var db=await source.OpenConnectionAsync(ct);
         await db.ExecuteAsync(new CommandDefinition("insert into uno.social_presence(user_id) values(@Id) on conflict(user_id) do update set seen_at=now()",new {Id},cancellationToken:ct));
         var friends=await db.QueryAsync(new CommandDefinition("select "+PublicFields+"""
-            ,case when f.accepted then 'friend' when f.requester_id=@Id then 'outgoing' else 'incoming' end as Relationship,
-            coalesce(f.accepted and s.seen_at>now()-interval '45 seconds',false) as Online
-            from uno.friendships f join uno.player_profiles p on p.user_id=case when f.low_id=@Id then f.high_id else f.low_id end
+            ,case when f.status='accepted' then 'friend' when f.requester_id=@Id then 'outgoing' else 'incoming' end as Relationship,
+            coalesce(f.status='accepted' and s.seen_at>now()-interval '45 seconds',false) as Online
+            from uno.friendships f join uno.player_profiles p on p.user_id=case when f.requester_id=@Id then f.recipient_id else f.requester_id end
             left join uno.social_presence s on s.user_id=p.user_id
-            where @Id in(f.low_id,f.high_id) order by p.username
+            where @Id in(f.requester_id,f.recipient_id) and f.status in ('pending','accepted') order by p.username
             """,new {Id},cancellationToken:ct));
         var invitations=await db.QueryAsync(new CommandDefinition("select "+PublicFields+"""
-            ,i.id as InvitationId,i.room_code as RoomCode from uno.room_invitations i
+            ,i.id as InvitationId,i.room_code as RoomCode from uno.live_room_invitations i
             join uno.player_profiles p on p.user_id=i.sender_id
             where i.recipient_id=@Id and i.expires_at>now() order by i.created_at desc limit 30
             """,new {Id},cancellationToken:ct));
@@ -56,9 +56,10 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         if(Source is not {} source)return StatusCode(503);
         await using var db=await source.OpenConnectionAsync(ct);
         var n=await db.ExecuteAsync(new CommandDefinition("""
-            insert into uno.friendships(low_id,high_id,requester_id)
-            select least(@Id,p.user_id),greatest(@Id,p.user_id),@Id from uno.player_profiles p
+            insert into uno.friendships(requester_id,recipient_id,status)
+            select @Id,p.user_id,'pending' from uno.player_profiles p
             where p.public_player_id=@PlayerId and p.user_id<>@Id
+            and not exists(select 1 from uno.friendships f where least(f.requester_id,f.recipient_id)=least(@Id,p.user_id) and greatest(f.requester_id,f.recipient_id)=greatest(@Id,p.user_id))
             on conflict do nothing
             """,new {Id,target.PlayerId},cancellationToken:ct));
         return n==1?NoContent():Conflict(new {message="Request already exists or player unavailable."});
@@ -69,9 +70,9 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         if(Source is not {} source)return StatusCode(503);
         await using var db=await source.OpenConnectionAsync(ct);
         var n=await db.ExecuteAsync(new CommandDefinition("""
-            update uno.friendships f set accepted=true from uno.player_profiles p
-            where p.public_player_id=@PlayerId and f.low_id=least(@Id,p.user_id) and f.high_id=greatest(@Id,p.user_id)
-            and f.requester_id=p.user_id and not f.accepted
+            update uno.friendships f set status='accepted',responded_at=now() from uno.player_profiles p
+            where p.public_player_id=@PlayerId and least(f.requester_id,f.recipient_id)=least(@Id,p.user_id) and greatest(f.requester_id,f.recipient_id)=greatest(@Id,p.user_id)
+            and f.requester_id=p.user_id and f.recipient_id=@Id and f.status='pending'
             """,new {Id,target.PlayerId},cancellationToken:ct));
         return n==1?NoContent():NotFound();
     }
@@ -83,8 +84,8 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         await using var tx=await db.BeginTransactionAsync(ct);
         await db.ExecuteAsync(new CommandDefinition("""
             delete from uno.friendships f using uno.player_profiles p
-            where p.public_player_id=@PlayerId and f.low_id=least(@Id,p.user_id) and f.high_id=greatest(@Id,p.user_id);
-            delete from uno.room_invitations i using uno.player_profiles p where p.public_player_id=@PlayerId
+            where p.public_player_id=@PlayerId and least(f.requester_id,f.recipient_id)=least(@Id,p.user_id) and greatest(f.requester_id,f.recipient_id)=greatest(@Id,p.user_id);
+            delete from uno.live_room_invitations i using uno.player_profiles p where p.public_player_id=@PlayerId
             and ((i.sender_id=@Id and i.recipient_id=p.user_id) or (i.recipient_id=@Id and i.sender_id=p.user_id));
             """,new {Id,target.PlayerId},tx,cancellationToken:ct));
         await tx.CommitAsync(ct);
@@ -99,11 +100,11 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         } catch(KeyNotFoundException){return NotFound();} catch(UnauthorizedAccessException){return Forbid();}
         await using var db=await source.OpenConnectionAsync(ct);
         var n=await db.ExecuteAsync(new CommandDefinition("""
-            insert into uno.room_invitations(sender_id,recipient_id,room_code)
+            insert into uno.live_room_invitations(sender_id,recipient_id,room_code)
             select @Id,p.user_id,@RoomCode from uno.player_profiles p join uno.friendships f
-            on f.low_id=least(@Id,p.user_id) and f.high_id=greatest(@Id,p.user_id)
-            where p.public_player_id=@PlayerId and f.accepted and not exists(
-              select 1 from uno.room_invitations i where i.sender_id=@Id and i.recipient_id=p.user_id and i.room_code=@RoomCode and i.expires_at>now())
+            on least(f.requester_id,f.recipient_id)=least(@Id,p.user_id) and greatest(f.requester_id,f.recipient_id)=greatest(@Id,p.user_id)
+            where p.public_player_id=@PlayerId and f.status='accepted' and not exists(
+              select 1 from uno.live_room_invitations i where i.sender_id=@Id and i.recipient_id=p.user_id and i.room_code=@RoomCode and i.expires_at>now())
             """,new {Id,request.PlayerId,request.RoomCode},cancellationToken:ct));
         return n==1?NoContent():Conflict(new {message="Friend unavailable or invitation already sent."});
     }
@@ -113,7 +114,7 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         if(Source is not {} source)return StatusCode(503);
         await using var db=await source.OpenConnectionAsync(ct);
         var code=await db.ExecuteScalarAsync<string>(new CommandDefinition("""
-            delete from uno.room_invitations where id=@InvitationId and recipient_id=@Id and expires_at>now() returning room_code
+            delete from uno.live_room_invitations where id=@InvitationId and recipient_id=@Id and expires_at>now() returning room_code
             """,new {Id,request.InvitationId},cancellationToken:ct));
         if(code is null)return NotFound();
         return Ok(new {roomCode=request.Accept?code:null});
