@@ -33,7 +33,15 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
             join uno.matches m on m.id=x.match_id
             where x.user_id=@Id and m.match_mode='ranked' and m.completed_at>=@Start and m.completed_at<@End
             """, new { Id = id, Start = start, End = start.AddMonths(1) }, cancellationToken: ct));
-        return Ok(new { row.Level, row.TotalXp, row.MatchesPlayed, row.Wins,
+        var stats = (await db.QueryAsync(new CommandDefinition("""
+            select m.match_mode as "mode", count(*)::int as "matchesPlayed",
+            count(*) filter (where p.finish_position=1 and not p.abandoned)::int as "wins",
+            count(*) filter (where p.finish_position is distinct from 1 and not p.abandoned)::int as "losses",
+            count(*) filter (where p.abandoned)::int as "abandoned"
+            from uno.match_players p join uno.matches m on m.id=p.match_id
+            where p.user_id=@Id and m.status='completed' group by m.match_mode
+            """, new { Id=id }, cancellationToken:ct))).ToArray();
+        return Ok(new { ModeStatistics=stats, row.Level, row.TotalXp, row.MatchesPlayed, row.Wins,
             Losses = row.MatchesPlayed - row.Wins,
             WinRate = row.MatchesPlayed == 0 ? 0 : 100.0 * row.Wins / row.MatchesPlayed,
             NextLevelXp = ProgressionPolicy.Threshold(row.Level + 1),
@@ -62,7 +70,7 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
     public async Task<IActionResult> History([FromQuery] int offset = 0, [FromQuery] int limit = 20, [FromQuery] string mode = "all", CancellationToken ct = default)
     {
         if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
-        if (mode is not ("all" or "bots" or "rooms" or "ranked") || offset < 0 || limit is < 1 or > 100) return BadRequest();
+        if (mode is not ("all" or "bots" or "rooms" or "ranked" or "legacy") || offset < 0 || limit is < 1 or > 100) return BadRequest();
         if (services.GetService<NpgsqlDataSource>() is not {} source) return StatusCode(503);
         await using var db = await source.OpenConnectionAsync(ct);
         return Ok(await db.QueryAsync<HistoryRow>(new CommandDefinition("""
