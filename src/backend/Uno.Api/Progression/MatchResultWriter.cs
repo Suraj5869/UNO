@@ -4,11 +4,11 @@ using Uno.Api.Rooms;
 
 namespace Uno.Api.Progression;
 
-public sealed record ResultPlayer(Guid PlayerId, Guid? UserId, string DisplayName, bool Won);
+public sealed record ResultPlayer(Guid PlayerId, Guid? UserId, string DisplayName, bool Won, bool Abandoned = false);
 public sealed record CompletedMatch(Guid Id, Guid RoomId, string Code, int MaximumPlayers, int RuleSet,
     DateTimeOffset StartedAt, DateTimeOffset CompletedAt, int CardsPlayed, ResultPlayer[] Players, string Mode = "rooms", int? Difficulty = null, bool Abandoned = false);
 
-public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services, ILogger<MatchResultWriter> logger) : BackgroundService
+public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services, ILogger<MatchResultWriter> logger, IConfiguration configuration) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -25,7 +25,7 @@ public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services
         }
     }
 
-    private static async Task Save(NpgsqlDataSource source, CompletedMatch match, CancellationToken ct)
+    private async Task Save(NpgsqlDataSource source, CompletedMatch match, CancellationToken ct)
     {
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
@@ -46,14 +46,26 @@ public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services
             await Run("""
                 insert into uno.match_players(match_id,player_id,user_id,display_name,finish_position,abandoned)
                 values (@MatchId,@PlayerId,@UserId,@DisplayName,@Position,@Abandoned)
-                """, new { MatchId=match.Id, player.PlayerId, player.UserId, player.DisplayName, Position=player.Won ? (int?)1 : null, match.Abandoned });
+                """, new { MatchId=match.Id, player.PlayerId, player.UserId, player.DisplayName, Position=player.Won ? (int?)1 : null, Abandoned=match.Abandoned || player.Abandoned });
             if (player.UserId is not Guid userId) continue;
-            var xp = match.Abandoned ? 0 : match.Mode == "bots" ? (5 + 5 * Math.Clamp(match.Difficulty ?? 0, 0, 2)) * (player.Won ? 2 : 1) : ProgressionPolicy.Award(player.Won, true, match.CardsPlayed);
+            var xp = match.Abandoned || player.Abandoned || match.CardsPlayed < 7 ? 0 : match.Mode == "bots" ? (5 + 5 * Math.Clamp(match.Difficulty ?? 0, 0, 2)) * (player.Won ? 2 : 1) : ProgressionPolicy.Award(player.Won, true, match.CardsPlayed);
             await Run("""
                 update uno.player_statistics set matches_played=matches_played+1,
                 wins=wins+@Win where user_id=@UserId
                 """, new { UserId=userId, Win=player.Won ? 1 : 0 });
             if (xp == 0) continue;
+            await Run("update uno.player_progress set total_xp=total_xp where user_id=@UserId", new { UserId=userId });
+            if (match.Mode is "bots" or "rooms")
+            {
+                var cap = Math.Max(0, configuration.GetValue<int?>("Progression:" + (match.Mode=="bots" ? "BotDailyXp" : "RoomDailyXp")) ?? (match.Mode=="bots" ? 300 : 500));
+                var day = new DateTimeOffset(match.CompletedAt.UtcDateTime.Date, TimeSpan.Zero);
+                var earned = await db.ExecuteScalarAsync<long>(new CommandDefinition("""
+                    select coalesce(sum(x.amount),0) from uno.xp_transactions x join uno.matches m on m.id=x.match_id
+                    where x.user_id=@UserId and m.match_mode=@Mode and m.completed_at>=@Start and m.completed_at<@End
+                    """, new { UserId=userId, match.Mode, Start=day, End=day.AddDays(1) }, tx, cancellationToken:ct));
+                xp = (int)Math.Min(xp, Math.Max(0L, cap-earned));
+                if (xp == 0) continue;
+            }
             await Run("""
                 insert into uno.xp_transactions(user_id,match_id,reason,amount,idempotency_key)
                 values (@UserId,@MatchId,'match_completed',@Xp,@Key)
