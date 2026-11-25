@@ -581,3 +581,6 @@ body:has(.game-layout) .batch4-board .top-card[class*="selected-wild-color-"]{ou
 .collection-retry{padding:16px;border:1px solid #ffaaa666;border-radius:12px;color:#ffaaa6}
 .collection-retry .collection-primary{padding:8px 22px}
 @media(max-width:700px){.collection-body{padding:12px;gap:12px}.collection-profile,.collection-inventory{padding:14px}}
+
+/* Dedicated play-mode setup uses the same visual language as private rooms. */
+.dashboard-modes>.dashboard-tile{width:100%;box-sizing:border-box;min-width:0;height:100%;min-height:230px}.play-setup-fields{display:grid;gap:18px;min-width:0}.play-setup-fields label{display:grid;gap:8px;font-weight:600;min-width:0}.play-setup-fields select{width:100%;box-sizing:border-box;min-height:48px;padding:10px 14px;border:1px solid #7779cf;border-radius:12px;background:#16194e;color:white;font:inherit}.play-setup-fields .bot-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.play-setup-fields select:focus-visible{outline:2px solid #ffca27;outline-offset:2px}@media(max-width:760px){.dashboard-modes>.dashboard-tile{min-height:110px;height:auto}}@media(max-width:360px){.play-setup-fields .bot-settings{grid-template-columns:1fr}}
