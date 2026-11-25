@@ -13,7 +13,7 @@ namespace Uno.Api.Controllers;
 public sealed class ProgressionController(IServiceProvider services) : ControllerBase
 {
     private sealed record ProgressRow(int Level, long TotalXp, int MatchesPlayed, int Wins);
-    public sealed record HistoryRow(Guid MatchId, DateTimeOffset CompletedAt, string Variant, int RuleSet, bool Won, long Xp);
+    public sealed record HistoryRow(Guid MatchId, DateTime CompletedAt, string Variant, int RuleSet, bool Won, long Xp);
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -52,7 +52,7 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
             coalesce(p.finish_position=1,false) as Won,
             coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp
             from uno.matches m join uno.match_players p on p.match_id=m.id
-            where m.id=@MatchId and p.user_id=@Id and m.status='completed'
+            where m.id=@MatchId and p.user_id=@Id and m.status='completed' and m.completed_at is not null
             """, new { MatchId=matchId, Id=id }, cancellationToken:ct));
         return row is null ? NotFound() : Ok(row);
     }
