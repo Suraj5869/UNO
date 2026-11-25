@@ -13,7 +13,7 @@ namespace Uno.Api.Controllers;
 public sealed class ProgressionController(IServiceProvider services) : ControllerBase
 {
     private sealed record ProgressRow(int Level, long TotalXp, int MatchesPlayed, int Wins);
-    public sealed record HistoryRow(Guid MatchId, DateTime CompletedAt, string Variant, int RuleSet, bool Won, long Xp);
+    public sealed record HistoryRow(Guid MatchId, DateTime CompletedAt, string Variant, int RuleSet, bool Won, long Xp, string Mode, int? Difficulty, bool Abandoned, long SeasonalXp);
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -31,7 +31,7 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
         var seasonalXp = await db.ExecuteScalarAsync<long>(new CommandDefinition("""
             select coalesce(sum(x.amount),0) from uno.xp_transactions x
             join uno.matches m on m.id=x.match_id
-            where x.user_id=@Id and m.completed_at>=@Start and m.completed_at<@End
+            where x.user_id=@Id and m.match_mode='ranked' and m.completed_at>=@Start and m.completed_at<@End
             """, new { Id = id, Start = start, End = start.AddMonths(1) }, cancellationToken: ct));
         return Ok(new { row.Level, row.TotalXp, row.MatchesPlayed, row.Wins,
             Losses = row.MatchesPlayed - row.Wins,
@@ -50,7 +50,8 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
         var row = await db.QuerySingleOrDefaultAsync<HistoryRow>(new CommandDefinition("""
             select m.id as MatchId,m.completed_at as CompletedAt,m.variant,m.rule_set as RuleSet,
             coalesce(p.finish_position=1,false) as Won,
-            coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp
+            coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp, m.match_mode as Mode, m.bot_difficulty as Difficulty, p.abandoned as Abandoned,
+            case when m.match_mode='ranked' then coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) else 0 end as SeasonalXp
             from uno.matches m join uno.match_players p on p.match_id=m.id
             where m.id=@MatchId and p.user_id=@Id and m.status='completed' and m.completed_at is not null
             """, new { MatchId=matchId, Id=id }, cancellationToken:ct));
@@ -58,19 +59,21 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
     }
 
     [HttpGet("history")]
-    public async Task<IActionResult> History([FromQuery] int offset = 0, [FromQuery] int limit = 20, CancellationToken ct = default)
+    public async Task<IActionResult> History([FromQuery] int offset = 0, [FromQuery] int limit = 20, [FromQuery] string mode = "all", CancellationToken ct = default)
     {
         if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
-        if (offset < 0 || limit is < 1 or > 100) return BadRequest();
+        if (mode is not ("all" or "bots" or "rooms" or "ranked") || offset < 0 || limit is < 1 or > 100) return BadRequest();
         if (services.GetService<NpgsqlDataSource>() is not {} source) return StatusCode(503);
         await using var db = await source.OpenConnectionAsync(ct);
         return Ok(await db.QueryAsync<HistoryRow>(new CommandDefinition("""
             select m.id as MatchId, m.completed_at as CompletedAt, m.variant, m.rule_set as RuleSet,
-                coalesce(bool_or(p.finish_position=1),false) as Won,
-                coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp
+                coalesce(p.finish_position=1,false) as Won,
+                coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp, m.match_mode as Mode, m.bot_difficulty as Difficulty, p.abandoned as Abandoned,
+            case when m.match_mode='ranked' then coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) else 0 end as SeasonalXp
             from uno.matches m join uno.match_players p on p.match_id=m.id
             where p.user_id=@Id and m.status='completed' and m.completed_at is not null
-            group by m.id order by m.completed_at desc,m.id desc offset @Offset limit @Limit
-            """, new { Id = id, Offset = offset, Limit = limit }, cancellationToken: ct)));
+            and (@Mode='all' or m.match_mode=@Mode)
+            order by m.completed_at desc,m.id desc offset @Offset limit @Limit
+            """, new { Id = id, Offset = offset, Limit = limit, Mode = mode }, cancellationToken: ct)));
     }
 }
