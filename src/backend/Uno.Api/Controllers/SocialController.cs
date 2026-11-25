@@ -18,7 +18,7 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
     public sealed record Target(Guid PlayerId);
     public sealed record Invite(Guid PlayerId,string RoomCode,string AccessToken);
     public sealed record Decision(Guid InvitationId,bool Accept);
-    private const string PublicFields = "p.public_player_id as PlayerId,p.username,p.display_name as DisplayName,p.avatar_key as AvatarKey";
+    private const string PublicFields = "p.public_player_id as \"playerId\",p.username,p.display_name as \"displayName\",p.avatar_key as \"avatarKey\",coalesce((select pr.level from uno.player_progress pr where pr.user_id=p.user_id),1) as level";
     [HttpGet("search")]
     public async Task<IActionResult> Search(string q, CancellationToken ct)
     {
@@ -37,14 +37,14 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
         await using var db=await source.OpenConnectionAsync(ct);
         await db.ExecuteAsync(new CommandDefinition("insert into uno.social_presence(user_id) values(@Id) on conflict(user_id) do update set seen_at=now()",new {Id},cancellationToken:ct));
         var friends=await db.QueryAsync(new CommandDefinition("select "+PublicFields+"""
-            ,case when f.status='accepted' then 'friend' when f.requester_id=@Id then 'outgoing' else 'incoming' end as Relationship,
-            coalesce(f.status='accepted' and s.seen_at>now()-interval '45 seconds',false) as Online
+            ,case when f.status='accepted' then 'friend' when f.requester_id=@Id then 'outgoing' else 'incoming' end as "relationship",
+            coalesce(f.status='accepted' and s.seen_at>now()-interval '45 seconds',false) as "online"
             from uno.friendships f join uno.player_profiles p on p.user_id=case when f.requester_id=@Id then f.recipient_id else f.requester_id end
             left join uno.social_presence s on s.user_id=p.user_id
             where @Id in(f.requester_id,f.recipient_id) and f.status in ('pending','accepted') order by p.username
             """,new {Id},cancellationToken:ct));
         var invitations=await db.QueryAsync(new CommandDefinition("select "+PublicFields+"""
-            ,i.id as InvitationId,i.room_code as RoomCode from uno.live_room_invitations i
+            ,i.id as "invitationId",i.room_code as "roomCode" from uno.live_room_invitations i
             join uno.player_profiles p on p.user_id=i.sender_id
             where i.recipient_id=@Id and i.expires_at>now() order by i.created_at desc limit 30
             """,new {Id},cancellationToken:ct));
