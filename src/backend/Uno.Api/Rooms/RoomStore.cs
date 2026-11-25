@@ -23,6 +23,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<Guid, BotDifficulty> _bots = new();
     private readonly Dictionary<Guid,int> _practiceMatches = new();
     private readonly HashSet<Guid> _rankedMatches = new();
+    private readonly Dictionary<Guid,List<ResultPlayer>> _departed = new();
     public BotDifficulty? GetBot(Guid seatId) { lock (_sync) return _bots.TryGetValue(seatId,out var difficulty) ? difficulty : null; }
     public void AddBots(string code, string token, int count, BotDifficulty difficulty)
     {
@@ -59,11 +60,12 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private void CaptureResult(UnoGameRoom room, bool abandoned = false)
     {
         if (room.Game is not {} game || (!abandoned && game.Status != GameStatus.Completed) || _captured.Contains(game.MatchId)) return;
-        var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0);
-        if (!abandoned && (winner is null || game.Players.Count < 2)) return;
+        var winner = game.Players.FirstOrDefault(p => p.Hand.Count == 0) ?? (game.Players.Count == 1 ? game.Players[0] : null);
+        if (!abandoned && (winner is null)) return;
         var participants = room.Players.Select(p => new ResultPlayer(p.Id,
             _accounts.TryGetValue(p.Id, out var account) ? account : null,
-            p.DisplayName, !abandoned && p.GamePlayerId == winner?.Id)).ToArray();
+            p.DisplayName, !abandoned && p.GamePlayerId == winner?.Id)).Concat(_departed.GetValueOrDefault(game.MatchId) ?? new List<ResultPlayer>()).ToArray();
+        _departed.Remove(game.MatchId);
         if (!participants.Any(p => p.UserId.HasValue)) return;
         _captured.Add(game.MatchId);
         _pendingResults.TryAdd(game.MatchId, new CompletedMatch(game.MatchId, room.Id, room.Code,
@@ -269,8 +271,13 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                 throw new UnauthorizedAccessException("The room access token is invalid.");
 
             CaptureResult(room);
-            if (room.Game is { Status: GameStatus.InProgress }) CaptureResult(room, abandoned:true);
+            if (room.Game is { Status: GameStatus.InProgress } active && room.Players.FirstOrDefault(p=>p.Id==playerId) is {} leaving)
+            {
+                if (!_departed.TryGetValue(active.MatchId,out var departed)) _departed[active.MatchId]=departed=new();
+                departed.Add(new ResultPlayer(playerId,_accounts.TryGetValue(playerId,out var account)?account:null,leaving.DisplayName,false,true));
+            }
             room.Leave(playerId);
+            if (room.Game is not null) CaptureResult(room, abandoned:room.Players.All(p=>_bots.ContainsKey(p.Id)));
             _accounts.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if(room.Players.All(p=>_bots.ContainsKey(p.Id))) { foreach(var bot in room.Players) _bots.Remove(bot.Id); _matchmakingRooms.Remove(room.Code); }
