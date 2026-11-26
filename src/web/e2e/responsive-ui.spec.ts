@@ -16,7 +16,7 @@ test('guest navigation and private room settings remain usable across screen siz
   await page.getByLabel('Your display name').fill('Responsive Host');
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await expect(page.getByRole('button', { name: /Play Match/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Ranked/ })).toBeVisible();
     await page.getByRole('button', { name: /Play with Friends/ }).click();
     await expect(page.getByLabel('Room code')).toBeVisible();
     await page.getByRole('button', { name: /Create private room/ }).click();
