@@ -146,7 +146,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         {
             await connection.ExecuteAsync(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=@Id",new { session.Id },tx,cancellationToken:ct));
             await tx.CommitAsync(ct);
-            services.GetService<Uno.Api.Rooms.RoomStore>()?.RevokeAccountRooms(session.UserId);
+            services.GetService<Uno.Api.Rooms.RoomStore>()?.RevokeSessionRooms(session.UserId, session.Id);
             return Unauthorized(new { message="Session expired. Please sign in again." });
         }
         var response = await Issue(connection,tx,jwt,session.UserId,ct,session.Id);
@@ -159,9 +159,9 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
     {
         if (Source is not {} source) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
-        var revokedAccount = await connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=(select session_id from uno.refresh_tokens where token_hash=@Hash) and revoked_at is null returning user_id",
+        var revokedSession = await connection.QuerySingleOrDefaultAsync<SessionRow>(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=(select session_id from uno.refresh_tokens where token_hash=@Hash) and revoked_at is null returning id,user_id as UserId",
             new { Hash=JwtSettings.Hash((Request.Headers["X-Uno-Browser"] == "1" ? Request.Cookies["__Host-uno-refresh"] : request.RefreshToken) ?? "") }, cancellationToken:ct));
-        if (revokedAccount is Guid accountId) services.GetService<Uno.Api.Rooms.RoomStore>()?.RevokeAccountRooms(accountId);
+        if (revokedSession is not null) services.GetService<Uno.Api.Rooms.RoomStore>()?.RevokeSessionRooms(revokedSession.UserId, revokedSession.Id);
         Response.Cookies.Delete("__Host-uno-refresh", CookieSettings());
         return NoContent();
     }
