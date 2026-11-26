@@ -8,9 +8,7 @@ const items = [
 ];
 
 test('profile popup, collection retry, tabs and name updates remain consistent', async ({ page }, testInfo) => {
-  await page.addInitScript(value => sessionStorage.setItem('uno-account-session', JSON.stringify({
-    accessToken: 'ui-token', refreshToken: 'ui-refresh', expiresIn: 3600, expiresAt: Date.now() + 3600000, player: value
-  })), player);
+  await page.route('**/api/auth/refresh', route => route.fulfill({ json: { accessToken: 'ui-token', expiresIn: 3600, player } }));
   let current = { ...player };
   await page.route('**/api/auth/me', async route => {
     if (route.request().method() === 'PUT') current = { ...current, ...route.request().postDataJSON() };
