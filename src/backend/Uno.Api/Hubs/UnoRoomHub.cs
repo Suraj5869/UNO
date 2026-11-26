@@ -47,6 +47,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
     public async Task LeaveRoom(string code, string accessToken)
     {
+        RequireConnection(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
         roomStore.Leave(code, accessToken);
 
@@ -63,6 +64,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
     public Task<GameStateResponse> GetGameState(string code, string accessToken)
     {
+        RequireConnection(code, accessToken);
         return Task.FromResult(roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
@@ -162,6 +164,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         var player = roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            RequireConnection(code, accessToken);
             var participant = room.Players.First(candidate => candidate.Id == playerId);
             new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId));
             return participant.DisplayName;
@@ -196,6 +199,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         var gameAction = roomStore.ExecuteLocked(code, room =>
         {
             var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            RequireConnection(code, accessToken);
             var wasCurrent = room.Game is {} before && before.CurrentPlayer.Id == GetGamePlayerId(room,playerId);
             action(room, playerId);
             if (wasCurrent && room.Game is {} game) roomStore.MarkParticipation(game.MatchId,playerId);
@@ -208,6 +212,13 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
         await publisher.PublishRoomAsync(code);
         await publisher.PublishGameStateAsync(code);
+    }
+
+    private void RequireConnection(string code, string accessToken)
+    {
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+        if (!roomStore.AuthorizedConnections(code, playerId).Contains(Context.ConnectionId))
+            throw new HubException("Join the room on this connection before performing actions.");
     }
 
     private static UnoGameState RequireGame(UnoGameRoom room) =>
