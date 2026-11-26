@@ -84,6 +84,13 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [verifyToken, setVerifyToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('verify') || '');
+  const resendVerification = async () => {
+    if (!identifier.includes('@')) { setError('Enter your email address to request a verification email.'); return; }
+    setBusy(true); setError('');
+    try { await request('resend-verification', { email: identifier.trim() }); setNotice('If an eligible account exists, a verification email will be sent.'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Unable to request verification.'); }
+    finally { setBusy(false); }
+  };
   const verifyEmail = async () => {
     setBusy(true); setError('');
     try { await request('verify-email', { token: verifyToken }); setVerifyToken(''); history.replaceState(null, '', location.pathname + location.search); setNotice('Email verified. Sign in to continue.'); }
@@ -168,6 +175,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
       <button className="auth-primary" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign In'}</button>
     </form>
     <button className="auth-link" disabled={busy} onClick={() => { setRegister(!register); setError(''); setPassword(''); setConfirm(''); }}>{register ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
+    {!register && <button type="button" className="auth-link" disabled={busy} onClick={resendVerification}>Resend verification email</button>}
     <button className="auth-guest" disabled={busy} onClick={() => { sessionStorage.setItem('uno-guest','true'); setGuest(true); }}>Sign In as Guest</button><small>Guest progress is not saved.</small>
     <img className="auth-peeking-mascot" src={import.meta.env.BASE_URL + "auth-mascot-3d.webp"} alt="" onError={e => { e.currentTarget.style.display = "none"; }}/></section></div></main>;
 }
