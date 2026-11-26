@@ -9,6 +9,7 @@ using Uno.GameEngine;
 namespace Uno.Api.Controllers;
 
 [Authorize]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("social")]
 [ApiController]
 [Route("api/social")]
 public sealed class SocialController(IServiceProvider services, RoomStore rooms) : ControllerBase
