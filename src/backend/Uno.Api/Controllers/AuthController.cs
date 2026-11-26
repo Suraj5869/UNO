@@ -20,6 +20,7 @@ public sealed record ProfileUpdateRequest([Required, StringLength(24, MinimumLen
 public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey);
 public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped, int RequiredLevel, int RequiredSeasonXp);
 public sealed record AccountIdentity(Guid Id);
+public sealed record SessionRow(Guid Id, Guid UserId);
 public sealed record AccountRow(Guid Id, string PasswordHash);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
     string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins, string CardBackKey, string TableThemeKey);
@@ -83,6 +84,14 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source || Jwt is not {} jwt) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         var identifier = request.Identifier.Trim().ToLowerInvariant();
+        var attempts = await connection.ExecuteScalarAsync<int>(new CommandDefinition("""
+            insert into uno.login_attempts(identifier_hash,attempts,window_start) values(@Hash,1,now())
+            on conflict(identifier_hash) do update set
+            attempts=case when uno.login_attempts.window_start<now()-interval '15 minutes' then 1 else least(uno.login_attempts.attempts+1,1000) end,
+            window_start=case when uno.login_attempts.window_start<now()-interval '15 minutes' then now() else uno.login_attempts.window_start end
+            returning attempts
+            """,new { Hash=JwtSettings.Hash(identifier) },cancellationToken:ct));
+        if(attempts>5) return StatusCode(429,new { message="Too many login attempts. Try again later." });
         var account = await connection.QuerySingleOrDefaultAsync<AccountRow>(new CommandDefinition("""
             select u.id, u.password_hash as PasswordHash from uno.users u
             join uno.player_profiles p on p.user_id=u.id
@@ -96,6 +105,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         }
         var verification = hasher.VerifyHashedPassword(new AccountIdentity(account.Id), account.PasswordHash, request.Password);
         if (verification == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials." });
+        await connection.ExecuteAsync(new CommandDefinition("delete from uno.login_attempts where identifier_hash=@Hash",new { Hash=JwtSettings.Hash(identifier) },cancellationToken:ct));
         await using var tx = await connection.BeginTransactionAsync(ct);
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
@@ -111,12 +121,25 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source || Jwt is not {} jwt) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var tx = await connection.BeginTransactionAsync(ct);
-        var id = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition("""
+        var hash = JwtSettings.Hash(request.RefreshToken);
+        var session = await connection.QuerySingleOrDefaultAsync<SessionRow>(new CommandDefinition("""
+            select s.id,s.user_id as UserId from uno.auth_sessions s
+            join uno.refresh_tokens t on t.session_id=s.id
+            where t.token_hash=@Hash and s.revoked_at is null and s.expires_at>now()
+            for update of s
+            """,new { Hash=hash },tx,cancellationToken:ct));
+        if(session is null) return Unauthorized(new { message="Invalid or expired refresh token." });
+        var used = await connection.ExecuteAsync(new CommandDefinition("""
             update uno.refresh_tokens set revoked_at=now()
-            where token_hash=@Hash and revoked_at is null and expires_at>now() returning user_id
-            """, new { Hash=JwtSettings.Hash(request.RefreshToken) }, tx,cancellationToken:ct));
-        if (id is null) return Unauthorized(new { message="Invalid or expired refresh token." });
-        var response = await Issue(connection, tx, jwt, id.Value, ct);
+            where token_hash=@Hash and revoked_at is null and expires_at>now()
+            """,new { Hash=hash },tx,cancellationToken:ct));
+        if(used!=1)
+        {
+            await connection.ExecuteAsync(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=@Id",new { session.Id },tx,cancellationToken:ct));
+            await tx.CommitAsync(ct);
+            return Unauthorized(new { message="Session expired. Please sign in again." });
+        }
+        var response = await Issue(connection,tx,jwt,session.UserId,ct,session.Id);
         await tx.CommitAsync(ct);
         return Ok(response);
     }
@@ -126,7 +149,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
     {
         if (Source is not {} source) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
-        await connection.ExecuteAsync(new CommandDefinition("update uno.refresh_tokens set revoked_at=now() where token_hash=@Hash and revoked_at is null",
+        await connection.ExecuteAsync(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=(select session_id from uno.refresh_tokens where token_hash=@Hash) and revoked_at is null",
             new { Hash=JwtSettings.Hash(request.RefreshToken) }, cancellationToken:ct));
         return NoContent();
     }
@@ -197,13 +220,16 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         return Ok(profile);
     }
 
-    private static async Task<AuthResponse> Issue(NpgsqlConnection connection, NpgsqlTransaction tx, JwtSettings jwt, Guid id, CancellationToken ct)
+    private static async Task<AuthResponse> Issue(NpgsqlConnection connection, NpgsqlTransaction tx, JwtSettings jwt, Guid id, CancellationToken ct, Guid? existingSession = null)
     {
+        var sessionId = existingSession ?? Guid.NewGuid();
+        if(existingSession is null)
+            await connection.ExecuteAsync(new CommandDefinition("insert into uno.auth_sessions(id,user_id,expires_at) values(@SessionId,@Id,now()+interval '30 days')",new { SessionId=sessionId,Id=id },tx,cancellationToken:ct));
         var refresh = JwtSettings.NewRefreshToken();
         await connection.ExecuteAsync(new CommandDefinition("""
-            insert into uno.refresh_tokens(user_id,token_hash,expires_at) values (@Id,@Hash,now()+interval '30 days')
-            """, new { Id=id, Hash=JwtSettings.Hash(refresh) },tx,cancellationToken:ct));
+            insert into uno.refresh_tokens(user_id,token_hash,expires_at,session_id) select @Id,@Hash,expires_at,id from uno.auth_sessions where id=@SessionId
+            """, new { Id=id, Hash=JwtSettings.Hash(refresh), SessionId=sessionId },tx,cancellationToken:ct));
         var profile = await connection.QuerySingleAsync<PlayerProfile>(new CommandDefinition(ProfileSql,new { Id=id },tx,cancellationToken:ct));
-        return new AuthResponse(jwt.Issue(id),refresh,900,profile);
+        return new AuthResponse(jwt.Issue(id,sessionId),refresh,900,profile);
     }
 }
