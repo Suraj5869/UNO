@@ -167,7 +167,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             return participant.DisplayName;
         });
 
-        await Clients.Group(RoomRealtimePublisher.RoomGroup(code))
+        await Clients.Clients(roomStore.AuthorizedConnections(code))
             .SendAsync("UnoCalled", player);
         await publisher.PublishRoomAsync(code);
         await publisher.PublishGameStateAsync(code);
