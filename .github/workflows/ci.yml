@@ -46,6 +46,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Build BrowserHost explicitly
+        run: dotnet build tests/Uno.BrowserHost/Uno.BrowserHost.csproj
       - name: Install web dependencies
         working-directory: src/web
         run: npm install
