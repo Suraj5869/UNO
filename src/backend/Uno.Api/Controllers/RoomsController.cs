@@ -12,6 +12,9 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
 {
     private Guid? AccountId => Guid.TryParse(User.FindFirstValue("sub"), out var id) && User.Identity?.IsAuthenticated == true ? id : null;
 
+    private Guid? SessionId => Guid.TryParse(User.FindFirstValue("sid"), out var id) && User.Identity?.IsAuthenticated == true ? id : null;
+    private void RequireSession(string code, string token) => roomStore.RequireSession(code, token, AccountId, SessionId);
+
     [HttpPost]
     [ProducesResponseType<RoomAccessResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -20,6 +23,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         try
         {
             var access = roomStore.Create(request, AccountId);
+            roomStore.BindSession(access.PlayerId, SessionId);
             var response = new RoomAccessResponse(
                 roomStore.ExecuteLocked(access.Room.Code, currentRoom => RoomResponse.From(currentRoom)),
                 access.PlayerId,
@@ -47,6 +51,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try {
             var access=roomStore.CreatePractice(request.DisplayName,request.BotCount,request.Difficulty,request.RuleSet,AccountId);
+            roomStore.BindSession(access.PlayerId, SessionId);
             return Ok(new RoomAccessResponse(roomStore.ExecuteLocked(access.Room.Code,RoomResponse.From),access.PlayerId,access.AccessToken));
         } catch(ArgumentException ex) { return BadRequest(Problem("Invalid practice settings",ex.Message,400)); }
         catch(InvalidOperationException ex) { return Conflict(Problem("Cannot create practice",ex.Message,409)); }
@@ -56,6 +61,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     public async Task<ActionResult<RoomResponse>> AddBots(string code,AddBotsRequest request)
     {
         try {
+            RequireSession(code, request.AccessToken);
             roomStore.AddBots(code,request.AccessToken,request.BotCount,request.Difficulty);
             await publisher.PublishRoomAsync(code);
             return Ok(roomStore.ExecuteLocked(code,RoomResponse.From));
@@ -73,6 +79,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         try
         {
             var access = roomStore.FindMatch(request.DisplayName, AccountId, request.MaximumPlayers, request.RuleSet);
+            roomStore.BindSession(access.PlayerId, SessionId);
             var response = roomStore.ExecuteLocked(access.Room.Code, RoomResponse.From);
             await publisher.PublishRoomAsync(access.Room.Code);
             if (response.GameStatus is not null)
@@ -93,6 +100,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     public async Task<IActionResult> CancelSearch(string code, StartRoomRequest request)
     {
         try {
+            RequireSession(code, request.AccessToken);
             roomStore.CancelSearch(code,request.AccessToken);
             await publisher.PublishRoomAsync(code);
             return NoContent();
@@ -110,6 +118,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         {
             return Ok(roomStore.ExecuteLocked(code, room =>
             {
+                RequireSession(code, token ?? "");
                 roomStore.AuthorizeParticipant(code, token ?? "");
                 return RoomResponse.From(room);
             }));
@@ -138,6 +147,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         try
         {
             var access = roomStore.Join(code, request.DisplayName, AccountId);
+            roomStore.BindSession(access.PlayerId, SessionId);
             var roomResponse = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
             await publisher.PublishRoomAsync(code);
             return Ok(new RoomAccessResponse(
@@ -173,6 +183,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
         {
             var room = roomStore.ExecuteLocked(code, currentRoom =>
             {
+                RequireSession(code, request.AccessToken);
                 var playerId = roomStore.AuthorizeParticipant(code, request.AccessToken);
                 if (roomStore.IsSearching(code)) throw new InvalidOperationException("Public queue settings cannot change.");
                 currentRoom.SetRuleSet(playerId, request.RuleSet);
@@ -210,6 +221,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
+            RequireSession(code, request.AccessToken);
             roomStore.StartGame(code, request.AccessToken);
             var room = roomStore.ExecuteLocked(code, currentRoom => RoomResponse.From(currentRoom));
             await publisher.PublishRoomAsync(code);
@@ -240,6 +252,7 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     {
         try
         {
+            RequireSession(code, request.AccessToken);
             var access = roomStore.PlayAgain(code, request.AccessToken);
             var response = new RoomAccessResponse(
                 roomStore.ExecuteLocked(access.Room.Code, currentRoom => RoomResponse.From(currentRoom)),
