@@ -25,3 +25,16 @@ test('invalid refresh token returns to sign in', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sign In', exact: true })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
 });
+
+test('unauthorized account request rotates once and retries', async ({ page }) => {
+  let refreshes = 0;
+  await page.route('**/api/auth/refresh', route => route.fulfill({ json: { ...session, accessToken: ++refreshes === 1 ? 'old-token' : 'new-token' } }));
+  await page.route('**/api/auth/me', route => route.fulfill({ json: player }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
+  await page.route('**/api/auth/collection', route => route.request().headers().authorization === 'Bearer new-token' ? route.fulfill({ json: [] }) : route.fulfill({ status: 401 }));
+  await page.getByRole('button', { name: 'Player profile' }).click();
+  await page.getByRole('button', { name: 'Profile & collections' }).click();
+  await expect.poll(() => refreshes).toBe(2);
+  expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
+});
