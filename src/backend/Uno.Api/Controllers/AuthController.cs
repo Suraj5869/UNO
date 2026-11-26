@@ -15,7 +15,7 @@ public sealed record RegisterRequest([Required, EmailAddress, MaxLength(254)] st
     [Required, StringLength(24, MinimumLength = 1)] string DisplayName,
     [Required, StringLength(128, MinimumLength = 8)] string Password);
 public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, [Required, MaxLength(128)] string Password);
-public sealed record RefreshRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string RefreshToken);
+public sealed record RefreshRequest([RegularExpression("^[A-Fa-f0-9]{64}$")] string? RefreshToken);
 public sealed record ProfileUpdateRequest([Required, StringLength(24, MinimumLength = 1)] string DisplayName);
 public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey);
 public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped, int RequiredLevel, int RequiredSeasonXp);
@@ -70,7 +70,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
                 """, new { Id=id, Email=email, Hash=hash, Username=username, Display=display }, tx, cancellationToken:ct));
             var response = await Issue(connection, tx, jwt, id, ct);
             await tx.CommitAsync(ct);
-            return StatusCode(201, response);
+            return StatusCode(201, BrowserResponse(response));
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
@@ -112,7 +112,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
                 new { account.Id, Hash=hasher.HashPassword(new AccountIdentity(account.Id),request.Password) }, tx,cancellationToken:ct));
         var response = await Issue(connection, tx, jwt, account.Id, ct);
         await tx.CommitAsync(ct);
-        return Ok(response);
+        return Ok(BrowserResponse(response));
     }
 
     [HttpPost("refresh")]
@@ -121,7 +121,9 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source || Jwt is not {} jwt) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var tx = await connection.BeginTransactionAsync(ct);
-        var hash = JwtSettings.Hash(request.RefreshToken);
+        var token = Request.Headers["X-Uno-Browser"] == "1" ? Request.Cookies["__Host-uno-refresh"] : request.RefreshToken;
+        if (token is null || token.Length != 64) return Unauthorized();
+        var hash = JwtSettings.Hash(token);
         var session = await connection.QuerySingleOrDefaultAsync<SessionRow>(new CommandDefinition("""
             select s.id,s.user_id as UserId from uno.auth_sessions s
             join uno.refresh_tokens t on t.session_id=s.id
@@ -141,7 +143,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         }
         var response = await Issue(connection,tx,jwt,session.UserId,ct,session.Id);
         await tx.CommitAsync(ct);
-        return Ok(response);
+        return Ok(BrowserResponse(response));
     }
 
     [HttpPost("logout")]
@@ -150,7 +152,8 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition("update uno.auth_sessions set revoked_at=now() where id=(select session_id from uno.refresh_tokens where token_hash=@Hash) and revoked_at is null",
-            new { Hash=JwtSettings.Hash(request.RefreshToken) }, cancellationToken:ct));
+            new { Hash=JwtSettings.Hash((Request.Headers["X-Uno-Browser"] == "1" ? Request.Cookies["__Host-uno-refresh"] : request.RefreshToken) ?? "") }, cancellationToken:ct));
+        Response.Cookies.Delete("__Host-uno-refresh", CookieSettings());
         return NoContent();
     }
 
@@ -218,6 +221,20 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         var profile = await connection.QuerySingleAsync<PlayerProfile>(new CommandDefinition(ProfileSql,new { Id=id },tx,cancellationToken:ct));
         await tx.CommitAsync(ct);
         return Ok(profile);
+    }
+
+    private static CookieOptions CookieSettings() => new()
+    {
+        HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Path = "/"
+    };
+
+    private AuthResponse BrowserResponse(AuthResponse response)
+    {
+        if (Request.Headers["X-Uno-Browser"] != "1") return response;
+        var options = CookieSettings();
+        options.MaxAge = TimeSpan.FromDays(30);
+        Response.Cookies.Append("__Host-uno-refresh", response.RefreshToken, options);
+        return response with { RefreshToken = "" };
     }
 
     private static async Task<AuthResponse> Issue(NpgsqlConnection connection, NpgsqlTransaction tx, JwtSettings jwt, Guid id, CancellationToken ct, Guid? existingSession = null)
