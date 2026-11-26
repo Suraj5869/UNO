@@ -82,6 +82,14 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [verifyToken, setVerifyToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('verify') || '');
+  const verifyEmail = async () => {
+    setBusy(true); setError('');
+    try { await request('verify-email', { token: verifyToken }); setVerifyToken(''); history.replaceState(null, '', location.pathname + location.search); setNotice('Email verified. Sign in to continue.'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Verification failed.'); }
+    finally { setBusy(false); }
+  };
   useEffect(() => {
     const sync = () => setSession(read());
     window.addEventListener(SESSION_EVENT, sync);
@@ -134,17 +142,23 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     if (register && password !== confirm) { setError('Passwords do not match.'); return; }
     setBusy(true);
     try {
+      if (register) {
+        await request('register', { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password });
+        setRegister(false); setPassword(''); setConfirm(''); setNotice('Check your email to verify your account before signing in.'); return;
+      }
       const result = await cookieLock(() => request<Session>(register ? 'register' : 'login', register ? { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password } : { identifier: identifier.trim(), password }));
       sessionStorage.removeItem('uno-guest'); sessionStorage.removeItem('uno-room-access'); sessionStorage.removeItem('uno-quick-match');
       setSession(save(result)); setGuest(false); setPassword(''); setConfirm('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in.'); }
     finally { setBusy(false); }
   };
+  if (verifyToken) return <main className="auth-shell"><section className="auth-panel"><h2>Verify your email</h2><p>Confirm your email address to activate your account.</p>{error && <p role="alert">{error}</p>}<button className="auth-primary" disabled={busy} onClick={verifyEmail}>Verify email</button></section></main>;
   if (loading) return <div className="auth-shell auth-loading"><LoadingScreen title="Restoring your session"/></div>;
   if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; publishSession(next); } })}</>;
   return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
     <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
     <section className="auth-panel"><h2 id="auth-heading">{register ? 'Create Account' : 'Sign In'}</h2>
+    {notice && <p role="status">{notice}</p>}
     <form onSubmit={submit} className="auth-form">
       <label>{register ? 'Email' : 'Email or username'}<input required type={register ? 'email' : 'text'} value={identifier} onChange={e => setIdentifier(e.target.value)} maxLength={254} autoComplete="username" placeholder={register ? "Enter your email" : "Enter your email or username"}/></label>
       {register && <><label>Username<input required pattern="[A-Za-z0-9_]{3,24}" value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname"/></label><label>Display name<input required maxLength={24} value={displayName} onChange={e => setDisplayName(e.target.value)}/></label></>}
