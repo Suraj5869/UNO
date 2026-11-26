@@ -71,6 +71,18 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     {
         lock (_sync) { var seat=AuthorizeParticipant(code,token); _presence[seat]=(code,token,connection,null); }
     }
+    public string[] AuthorizedConnections(string code, Guid? playerId = null)
+    {
+        lock (_sync)
+        {
+            if (!_roomsByCode.TryGetValue(code.Trim(), out var room)) return [];
+            return room.Players.Where(p => playerId == null || p.Id == playerId)
+                .Select(p => _presence.GetValueOrDefault(p.Id))
+                .Where(p => p.Connection != null && string.Equals(p.Code, room.Code, StringComparison.OrdinalIgnoreCase)
+                    && _tokensByRoomCode[room.Code].ContainsKey(p.Token))
+                .Select(p => p.Connection!).Distinct().ToArray();
+        }
+    }
     public void Disconnected(string connection)
     {
         lock (_sync) foreach(var entry in _presence.Where(p=>p.Value.Connection==connection).ToArray())
@@ -208,6 +220,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
 
         lock (_sync)
         {
+            if (_roomsByCode.Count >= 500) throw new InvalidOperationException("Room capacity reached. Try again later.");
+            if (userId.HasValue && _accounts.Values.Count(id => id == userId.Value) >= 3) throw new InvalidOperationException("Too many active rooms.");
             if (_roomsByCode.ContainsKey(room.Code))
             {
                 throw new InvalidOperationException(
@@ -240,6 +254,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             if (_matchmakingRooms.Contains(room.Code) && !publicQueue) throw new InvalidOperationException("Join public matches through matchmaking.");
             if (userId.HasValue && room.Players.Any(p => _accounts.GetValueOrDefault(p.Id) == userId.Value))
                 throw new InvalidOperationException("Account already occupies a seat.");
+            if (userId.HasValue && _accounts.Values.Count(id => id == userId.Value) >= 3) throw new InvalidOperationException("Too many active rooms.");
             var player = room.Join(displayName);
             if (userId.HasValue) _accounts.Add(player.Id, userId.Value);
             _tokensByRoomCode[room.Code].Add(accessToken, player.Id);
