@@ -45,10 +45,10 @@ public sealed class UnoGameRoom
         CreatorPlayerId = AddPlayer(creatorDisplayName, isCreator: true).Id;
     }
 
-    public Guid Id { get; }
+    public Guid Id { get; private set; }
 
     /// <summary>Short code that can be shared to join this room.</summary>
-    public string Code { get; }
+    public string Code { get; private set; }
 
     public Guid CreatorPlayerId { get; private set; }
 
@@ -178,6 +178,17 @@ public sealed class UnoGameRoom
         Game = game;
         Status = UnoRoomStatus.InProgress;
         return game;
+    }
+
+    public sealed record SeatCheckpoint(Guid Id,string Name,bool Creator,Guid? GamePlayerId);
+    public sealed record Checkpoint(Guid Id,string Code,Guid Creator,int Capacity,UnoRuleSet Rules,UnoRoomStatus Status,SeatCheckpoint[] Seats,UnoGameState.Checkpoint? Game);
+    public Checkpoint ExportCheckpoint() => new(Id,Code,CreatorPlayerId,MaximumPlayers,RuleSet,Status,_players.Select(p=>new SeatCheckpoint(p.Id,p.DisplayName,p.IsCreator,p.GamePlayerId)).ToArray(),Game?.ExportCheckpoint());
+    public static UnoGameRoom RestoreCheckpoint(Checkpoint c)
+    {
+        var room=new UnoGameRoom("Recovery",c.Capacity,c.Rules) { Id=c.Id,Code=c.Code,CreatorPlayerId=c.Creator,Status=c.Status,Game=c.Game is null?null:UnoGameState.RestoreCheckpoint(c.Game) };
+        room._players.Clear();
+        foreach(var p in c.Seats) room._players.Add(new UnoRoomPlayer(p.Id,p.Name,p.Creator){GamePlayerId=p.GamePlayerId});
+        return room;
     }
 
     private UnoRoomPlayer AddPlayer(string displayName, bool isCreator)
