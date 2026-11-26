@@ -69,11 +69,30 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     }
     // Revoke all room seats owned by an account when its session is revoked.
     // Conservative account-wide revocation until seats carry individual session IDs.
-    public void RevokeAccountRooms(Guid accountId)
+    private readonly Dictionary<Guid, Guid> _seatSessions = new();
+    public void BindSession(Guid seat, Guid? sessionId)
     {
         lock (_sync)
         {
-            foreach (var seat in _accounts.Where(p => p.Value == accountId).Select(p => p.Key).ToArray())
+            if (_accounts.ContainsKey(seat))
+                _seatSessions[seat] = sessionId ?? throw new UnauthorizedAccessException("Account session required.");
+        }
+    }
+    public void RequireSession(string code, string token, Guid? accountId, Guid? sessionId)
+    {
+        lock (_sync)
+        {
+            var room = GetByCodeUnsafe(code);
+            if (!_tokensByRoomCode[room.Code].TryGetValue(token, out var seat)) throw new UnauthorizedAccessException("Invalid room credential.");
+            if (_accounts.TryGetValue(seat, out var owner) && (owner != accountId || !sessionId.HasValue || !_seatSessions.TryGetValue(seat, out var bound) || bound != sessionId.Value))
+                throw new UnauthorizedAccessException("Room session mismatch.");
+        }
+    }
+    public void RevokeSessionRooms(Guid accountId, Guid sessionId)
+    {
+        lock (_sync)
+        {
+            foreach (var seat in _accounts.Where(p => p.Value == accountId && _seatSessions.GetValueOrDefault(p.Key) == sessionId).Select(p => p.Key).ToArray())
             {
                 if (_presence.TryGetValue(seat, out var presence))
                 {
@@ -357,6 +376,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                     var revokedSeat = _tokensByRoomCode[room.Code][revokedToken];
                     _tokensByRoomCode[room.Code].Remove(revokedToken);
                     _accounts.Remove(revokedSeat);
+                    _seatSessions.Remove(revokedSeat);
                     _presence.Remove(revokedSeat);
                 }
             }
@@ -382,6 +402,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             room.Leave(playerId);
             if (room.Game is not null) CaptureResult(room, abandoned:room.Players.All(p=>_bots.ContainsKey(p.Id)));
             _accounts.Remove(playerId);
+            _seatSessions.Remove(playerId);
             _presence.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if(room.Players.All(p=>_bots.ContainsKey(p.Id))) _matchmakingRooms.Remove(room.Code);
