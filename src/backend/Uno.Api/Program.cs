@@ -75,6 +75,21 @@ public static class UnoApi
             authentication.AddJwtBearer(options =>
             {
                 options.MapInboundClaims = false;
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        if (!Guid.TryParse(context.Principal?.FindFirst("sid")?.Value,out var sessionId) ||
+                            !Guid.TryParse(context.Principal?.FindFirst("sub")?.Value,out var userId) ||
+                            context.HttpContext.RequestServices.GetService<NpgsqlDataSource>() is not {} source)
+                        { context.Fail("Invalid session."); return; }
+                        await using var db = await source.OpenConnectionAsync(context.HttpContext.RequestAborted);
+                        var active = await db.ExecuteScalarAsync<bool>(new CommandDefinition(
+                            "select exists(select 1 from uno.auth_sessions where id=@SessionId and user_id=@UserId and revoked_at is null and expires_at>now())",
+                            new { SessionId=sessionId,UserId=userId },cancellationToken:context.HttpContext.RequestAborted));
+                        if (!active) context.Fail("Session expired.");
+                    }
+                };
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true, ValidIssuer = JwtSettings.Issuer,
