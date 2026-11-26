@@ -148,6 +148,16 @@ public static class UnoApi
             context.Response.Headers["X-Frame-Options"] = "DENY";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
             context.Response.Headers["Cache-Control"] = "no-store";
+            if (context.Request.Headers["X-Uno-Browser"] == "1" &&
+                !HttpMethods.IsGet(context.Request.Method) &&
+                !HttpMethods.IsHead(context.Request.Method) &&
+                (!context.Request.Headers.TryGetValue("Origin", out var browserOrigin) ||
+                 !(allowedOrigins.Contains(browserOrigin.ToString(), StringComparer.Ordinal) ||
+                   browserOrigin.ToString() == $"{context.Request.Scheme}://{context.Request.Host}")))
+            {
+                context.Response.StatusCode = 403;
+                return;
+            }
             if (context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && context.User.Identity?.IsAuthenticated != true)
             {
                 context.Response.StatusCode = 401;
