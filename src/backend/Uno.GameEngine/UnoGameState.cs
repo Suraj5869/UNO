@@ -51,8 +51,8 @@ public sealed class UnoGameState
         TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(TurnDuration);
     }
 
-    public Guid MatchId { get; } = Guid.NewGuid();
-    public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
+    public Guid MatchId { get; private set; } = Guid.NewGuid();
+    public DateTimeOffset StartedAt { get; private set; } = DateTimeOffset.UtcNow;
     public int CardsPlayed { get; internal set; }
     public IReadOnlyList<UnoPlayer> Players { get; }
 
@@ -108,6 +108,16 @@ public sealed class UnoGameState
 
     /// <summary>Total cards owed by the current pending draw-card chain.</summary>
     public int PendingDrawAmount { get; internal set; }
+
+    public sealed record PlayerCheckpoint(Guid Id,string Name,UnoCard[] Hand);
+    public sealed record Checkpoint(Guid MatchId,DateTimeOffset StartedAt,int CardsPlayed,PlayerCheckpoint[] Players,UnoCard[] Draw,UnoCard[] Discard,CardColor Color,int Index,int Direction,GameStatus Status,UnoRuleSet Rules,Guid? AwaitingUno,DateTimeOffset? UnoDeadline,UnoCard? JustDrawn,DateTimeOffset TurnDeadline,int? Offender,bool? Illegal,CardType? PendingType,int PendingAmount);
+    public Checkpoint ExportCheckpoint() => new(MatchId,StartedAt,CardsPlayed,Players.Select(p=>new PlayerCheckpoint(p.Id,p.Name,p.Hand.ToArray())).ToArray(),DrawPile.ToArray(),DiscardPile.ToArray(),ActiveColor,CurrentPlayerIndex,TurnDirection,Status,RuleSet,PlayerAwaitingUnoCallId,UnoCallDeadlineUtc,JustDrawnCard,TurnDeadlineUtc,WildDrawFourOffenderIndex,WildDrawFourWasIllegal,PendingDrawType,PendingDrawAmount);
+    public static UnoGameState RestoreCheckpoint(Checkpoint c)
+    {
+        var players=c.Players.Select(p=> { var player=new UnoPlayer(p.Name,p.Id); foreach(var card in p.Hand) player.AddCard(card); return player; });
+        return new UnoGameState(players,c.Draw,c.Discard,c.Color,c.Index,c.Direction,c.Status,c.Rules) {
+            MatchId=c.MatchId,StartedAt=c.StartedAt,CardsPlayed=c.CardsPlayed,PlayerAwaitingUnoCallId=c.AwaitingUno,UnoCallDeadlineUtc=c.UnoDeadline,JustDrawnCard=c.JustDrawn,TurnDeadlineUtc=c.TurnDeadline,WildDrawFourOffenderIndex=c.Offender,WildDrawFourWasIllegal=c.Illegal,PendingDrawType=c.PendingType,PendingDrawAmount=c.PendingAmount };
+    }
 
     internal List<UnoCard> MutableDrawPile => _drawPile;
 
