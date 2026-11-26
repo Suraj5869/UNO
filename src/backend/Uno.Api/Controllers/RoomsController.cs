@@ -104,11 +104,19 @@ public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher p
     [HttpGet("{code}")]
     [ProducesResponseType<RoomResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    public ActionResult<RoomResponse> GetRoom(string code)
+    public ActionResult<RoomResponse> GetRoom(string code, [FromHeader(Name = "X-Room-Token")] string? token = null)
     {
         try
         {
-            return Ok(roomStore.ExecuteLocked(code, room => RoomResponse.From(room)));
+            return Ok(roomStore.ExecuteLocked(code, room =>
+            {
+                roomStore.AuthorizeParticipant(code, token ?? "");
+                return RoomResponse.From(room);
+            }));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return NotFound();
         }
         catch (KeyNotFoundException exception)
         {
