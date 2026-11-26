@@ -1,4 +1,5 @@
 using Uno.Api.Controllers;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -51,7 +52,7 @@ public static class UnoApi
         // Room state is currently process-local. Use a persistent shared store before
         // scaling the API to multiple instances.
         builder.Services.AddSingleton<RoomStore>();
-        builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 16 * 1024; options.MaximumParallelInvocationsPerClient = 1; options.EnableDetailedErrors = false; });
+        builder.Services.AddSignalR(options => { options.AddFilter<UnoHubThrottle>(); options.MaximumReceiveMessageSize = 16 * 1024; options.MaximumParallelInvocationsPerClient = 1; options.EnableDetailedErrors = false; });
         builder.Services.AddSingleton<RoomRealtimePublisher>();
         builder.Services.AddHostedService<RuntimeRecoveryService>();
         builder.Services.AddHostedService<UnoTurnTimeoutService>();
@@ -100,6 +101,12 @@ public static class UnoApi
         {
             options.RejectionStatusCode = 429;
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext,string>(context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 180, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            options.AddPolicy("rooms", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 40, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            options.AddPolicy("social", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -117,6 +124,7 @@ public static class UnoApi
         }
 
         app.UseHttpsRedirection();
+        app.UseWebSockets();
         app.UseCors("Frontend");
         app.UseAuthentication();
         app.Use(async (context, next) =>
