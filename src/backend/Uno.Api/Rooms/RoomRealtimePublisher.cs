@@ -21,7 +21,7 @@ public sealed class RoomRealtimePublisher(
     }
 
     public Task PublishGameActionAsync(string code, GameActionEvent action) =>
-        hubContext.Clients.Group(RoomGroup(code)).SendAsync("GameAction", action);
+        hubContext.Clients.Clients(roomStore.AuthorizedConnections(code)).SendAsync("GameAction", action);
 
     public static string RoomGroup(string code) => $"uno-room:{code.Trim().ToUpperInvariant()}";
 
@@ -31,7 +31,7 @@ public sealed class RoomRealtimePublisher(
     public async Task PublishRoomAsync(string code)
     {
         var room = roomStore.ExecuteLocked(code, room => RoomResponse.From(room));
-        await hubContext.Clients.Group(RoomGroup(code))
+        await hubContext.Clients.Clients(roomStore.AuthorizedConnections(code))
             .SendAsync("RoomUpdated", room);
     }
 
@@ -53,7 +53,7 @@ public sealed class RoomRealtimePublisher(
 
         foreach (var (playerId, state) in states)
         {
-            await hubContext.Clients.Group(PlayerGroup(code, playerId))
+            await hubContext.Clients.Clients(roomStore.AuthorizedConnections(code, playerId))
                 .SendAsync("GameStateUpdated", state);
         }
     }
