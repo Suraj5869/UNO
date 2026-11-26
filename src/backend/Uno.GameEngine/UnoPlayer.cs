@@ -4,9 +4,9 @@ public sealed class UnoPlayer
 {
     private readonly List<UnoCard> _hand = [];
 
-    internal UnoPlayer(string name)
+    internal UnoPlayer(string name, Guid? id = null)
     {
-        Id = Guid.NewGuid();
+        Id = id ?? Guid.NewGuid();
         Name = name;
     }
 

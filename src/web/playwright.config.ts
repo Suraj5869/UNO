@@ -1,0 +1,47 @@
+import { defineConfig, devices } from '@playwright/test';
+
+const backendUrl = 'http://localhost:7137';
+const frontendUrl = 'http://localhost:5173';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: false,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: process.env.CI ? [['github'], ['html', { outputFolder: 'playwright-report', open: 'never' }]] : 'list',
+  outputDir: 'test-results',
+  use: {
+    baseURL: frontendUrl,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    ...(process.env.UNO_CROSS_BROWSER === '1' ? [
+      { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testMatch: /(?:responsive-ui|profile-ui|visual-feedback)\.spec\.ts/ },
+      { name: 'webkit', use: { ...devices['Desktop Safari'] }, testMatch: /(?:responsive-ui|profile-ui|visual-feedback)\.spec\.ts/ },
+    ] : []),
+  ],
+  webServer: [
+    {
+      command: 'dotnet run --project ../../tests/Uno.BrowserHost/Uno.BrowserHost.csproj --no-launch-profile --urls http://localhost:7137',
+      url: backendUrl + '/swagger/index.html',
+      cwd: process.cwd(),
+      env: { ASPNETCORE_ENVIRONMENT: 'Development' },
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev -- --host 0.0.0.0',
+      env: { VITE_API_URL: backendUrl, VITE_SIGNALR_URL: backendUrl + '/hubs/uno-room' },
+      url: frontendUrl,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+  ],
+});

@@ -4,6 +4,216 @@ namespace Uno.GameEngine.Tests;
 
 public sealed class UnoGameEngineTests
 {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    public void DrawCard_WithEmptyPile_RecyclesDiscardsAndConservesDeck(int seats)
+    {
+        var game = UnoGameFactory.CreateGame(
+            Enumerable.Range(1, seats).Select(i => $"Player {i}").ToArray(), new Random(17));
+        var expected = AllCards(game);
+        var top = game.TopDiscard;
+        game.MutableDiscardPile.InsertRange(0, game.DrawPile);
+        game.MutableDrawPile.Clear();
+        var recycledCount = game.DiscardPile.Count - 1;
+
+        new UnoGameEngine().DrawCard(game, game.CurrentPlayer.Id);
+
+        Assert.Same(top, Assert.Single(game.DiscardPile));
+        Assert.Equal(recycledCount - 1, game.DrawPile.Count);
+        Assert.Equal(expected, AllCards(game));
+    }
+
+    [Fact]
+    public void ExpiredTurn_RejectsActionWithoutMutatingCards()
+    {
+        var game = CreateGameWithPlayableNumberCard(out var card);
+        var engine = new UnoGameEngine(new Random(1));
+        var actor = game.CurrentPlayer;
+        var before = AllCards(game);
+        var hand = actor.Hand.ToArray();
+        var top = game.TopDiscard;
+        game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        Assert.Throws<InvalidOperationException>(() => engine.PlayCard(game, actor.Id, card));
+        Assert.Throws<InvalidOperationException>(() => engine.DrawCard(game, actor.Id));
+        Assert.Equal(hand, actor.Hand.ToArray());
+        Assert.Equal(top, game.TopDiscard);
+        Assert.Equal(before, AllCards(game));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DepartureDuringWildPenalty_PreservesCardsAndTransfersPenalty(bool offenderLeaves)
+    {
+        var game = UnoGameFactory.CreateGame(["A", "B", "C"], new Random(19));
+        var engine = new UnoGameEngine(new Random(2));
+        var offender = game.CurrentPlayer;
+        var recipient = game.Players[1];
+        var successor = game.Players[2];
+        // Set up the pending penalty without altering the deck.
+        game.CurrentPlayerIndex = 1;
+        game.PendingDrawType = CardType.WildDrawFour;
+        game.PendingDrawAmount = 4;
+        game.WildDrawFourOffenderIndex = 0;
+        game.WildDrawFourWasIllegal = false;
+        var before = AllCards(game);
+        Assert.True(engine.RemovePlayer(game, offenderLeaves ? offender.Id : recipient.Id));
+        Assert.Equal(before, AllCards(game));
+        Assert.Equal(4, game.PendingDrawAmount);
+        Assert.Equal(offenderLeaves ? recipient.Id : successor.Id, game.CurrentPlayer.Id);
+        if (offenderLeaves)
+        {
+            Assert.False(game.IsWildDrawFourChallengePending);
+            engine.AcceptDrawPenalty(game, recipient.Id);
+        }
+        else
+        {
+            Assert.True(game.IsWildDrawFourChallengePending);
+            engine.AcceptWildDrawFour(game, successor.Id);
+        }
+        Assert.Equal(0, game.PendingDrawAmount);
+        Assert.Equal(before, AllCards(game));
+    }
+
+    [Theory]
+    [InlineData(2, 11, UnoRuleSet.Official)]
+    [InlineData(4, 22, UnoRuleSet.House)]
+    [InlineData(6, 33, UnoRuleSet.Official)]
+    [InlineData(10, 44, UnoRuleSet.House)]
+    public void SeededTurns_ConserveDeckAcrossRules(int seats, int seed, UnoRuleSet rules)
+    {
+        var game = UnoGameFactory.CreateGame(Enumerable.Range(0, seats).Select(i => $"P{i}").ToArray(), new Random(seed), rules);
+        var engine = new UnoGameEngine(new Random(seed));
+        var before = AllCards(game);
+        for (var i = 0; i < 300 && game.Status == GameStatus.InProgress; i++)
+        {
+            var actor = game.CurrentPlayer;
+            if (game.IsWildDrawFourChallengePending) engine.AcceptWildDrawFour(game, actor.Id);
+            else if (game.PendingDrawAmount > 0) engine.AcceptDrawPenalty(game, actor.Id);
+            else
+            {
+                var card = actor.Hand.FirstOrDefault(c =>
+                    (actor.Hand.Count > 1 || c.Type == CardType.Number) &&
+                    (c.Color == CardColor.None || c.Color == game.ActiveColor ||
+                     (c.Type == game.TopDiscard.Type && c.Number == game.TopDiscard.Number)));
+                if (card is not null)
+                {
+                    engine.PlayCard(game, actor.Id, card, card.Color == CardColor.None ? CardColor.Blue : CardColor.None);
+                    if (game.PlayerAwaitingUnoCallId == actor.Id && game.Status == GameStatus.InProgress)
+                        engine.CallUno(game, actor.Id);
+                }
+                else if (game.DrawPile.Count > 0 || game.DiscardPile.Count > 1)
+                {
+                    engine.DrawCard(game, actor.Id);
+                    if (game.CanPassAfterDraw) engine.PassAfterDraw(game, actor.Id);
+                }
+                else engine.AutoResolveTimedOutTurn(game, game.TurnDeadlineUtc);
+            }
+            Assert.Equal(before, AllCards(game));
+        }
+    }
+
+    [Fact]
+    public void TenPlayerMatch_ConservesCardsUntilOnePlayerWins()
+    {
+        var names = Enumerable.Range(1, 10).Select(i => $"Player {i}").ToArray();
+        var game = UnoGameFactory.CreateGame(names, new Random(42));
+        var engine = new UnoGameEngine(new Random(21));
+        var expected = AllCards(game);
+
+        for (var turn = 0; turn < 1000 && game.Status == GameStatus.InProgress; turn++)
+        {
+            var actor = game.CurrentPlayer;
+            if (game.IsWildDrawFourChallengePending)
+            {
+                engine.AcceptWildDrawFour(game, actor.Id);
+            }
+            else
+            {
+                var card = actor.Hand.FirstOrDefault(card =>
+                    (actor.Hand.Count > 1 || card.Type == CardType.Number) &&
+                    (card.Color == CardColor.None || card.Color == game.ActiveColor ||
+                    (card.Type == game.TopDiscard.Type && card.Number == game.TopDiscard.Number)));
+                if (card is null)
+                {
+                    engine.DrawCard(game, actor.Id);
+                    if (game.CanPassAfterDraw) engine.PassAfterDraw(game, actor.Id);
+                }
+                else
+                {
+                    engine.PlayCard(game, actor.Id, card,
+                        card.Color == CardColor.None ? CardColor.Blue : CardColor.None);
+                    if (game.PlayerAwaitingUnoCallId == actor.Id) engine.CallUno(game, actor.Id);
+                }
+            }
+
+            Assert.Equal(expected, AllCards(game));
+        }
+
+        Assert.Equal(GameStatus.Completed, game.Status);
+        Assert.Single(game.Players, player => player.Hand.Count == 0);
+    }
+
+    private static string[] AllCards(UnoGameState game) =>
+        game.Players.SelectMany(player => player.Hand)
+            .Concat(game.DrawPile).Concat(game.DiscardPile)
+            .Select(card => $"{card.Color}/{card.Type}/{card.Number}").Order().ToArray();
+
+    [Fact]
+    public void AutoResolveTimedOutTurn_DuplicateTickOnlyAdvancesOnce()
+    {
+        var game = UnoGameFactory.CreateGame(["Alice", "Bob"], new Random(23));
+        var engine = new UnoGameEngine();
+        var deadline = DateTimeOffset.UtcNow;
+        game.TurnDeadlineUtc = deadline;
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline.AddTicks(-1)));
+        Assert.True(engine.AutoResolveTimedOutTurn(game, deadline));
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline));
+        // A delayed submission from the timed-out seat must not draw a second card.
+        Assert.Throws<InvalidOperationException>(() => engine.DrawCard(game, game.Players[0].Id));
+        Assert.Equal(8, game.Players[0].Hand.Count);
+        Assert.Equal(game.Players[1].Id, game.CurrentPlayer.Id);
+    }
+
+    [Fact]
+    public void CreateGame_WithoutRuleSelection_UsesOfficialRules()
+    {
+        var game = UnoGameFactory.CreateGame(
+            ["Alice", "Bob"],
+            new Random(123));
+
+        Assert.Equal(UnoRuleSet.Official, game.RuleSet);
+    }
+
+    [Fact]
+    public void CreateGame_WithHouseRules_PersistsSelectedRuleSet()
+    {
+        var game = UnoGameFactory.CreateGame(
+            ["Alice", "Bob", "Charlie"],
+            new Random(123),
+            UnoRuleSet.House);
+
+        Assert.Equal(UnoRuleSet.House, game.RuleSet);
+    }
+
+    [Fact]
+    public void CreateGame_WithUnknownRuleSet_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            UnoGameFactory.CreateGame(
+                ["Alice", "Bob"],
+                new Random(123),
+                (UnoRuleSet)999));
+    }
+
     [Fact]
     public void PlayCard_WithPlayableNumberCard_UpdatesDiscardAndTurn()
     {
@@ -100,6 +310,138 @@ public sealed class UnoGameEngineTests
     }
 
     [Fact]
+    public void PlayDrawTwo_UnderHouseRules_CreatesStackAndNextPlayerCanStack()
+    {
+        var game = CreateHouseGameWithStackableDrawTwos(out var first, out var second);
+        var engine = new UnoGameEngine();
+        var firstPlayer = game.CurrentPlayer;
+        var secondPlayer = game.Players[1];
+        var secondOriginalHandSize = secondPlayer.Hand.Count;
+
+        engine.PlayCard(game, firstPlayer.Id, first);
+
+        Assert.Equal(CardType.DrawTwo, game.PendingDrawType);
+        Assert.Equal(2, game.PendingDrawAmount);
+        Assert.Equal(secondPlayer.Id, game.CurrentPlayer.Id);
+        Assert.Equal(secondOriginalHandSize, secondPlayer.Hand.Count);
+
+        engine.PlayCard(game, secondPlayer.Id, second);
+
+        Assert.Equal(4, game.PendingDrawAmount);
+        Assert.Equal(game.Players[2].Id, game.CurrentPlayer.Id);
+        Assert.Equal(secondOriginalHandSize - 1, secondPlayer.Hand.Count);
+    }
+
+    [Fact]
+    public void AcceptDrawPenalty_DrawsAccumulatedDrawTwoStackAndSkipsTurn()
+    {
+        var game = CreateHouseGameWithStackableDrawTwos(out var first, out var second);
+        var engine = new UnoGameEngine();
+        engine.PlayCard(game, game.CurrentPlayer.Id, first);
+        engine.PlayCard(game, game.CurrentPlayer.Id, second);
+
+        var penalizedPlayer = game.CurrentPlayer;
+        var originalHandSize = penalizedPlayer.Hand.Count;
+        // Alice and Bob have played the two stacked cards, so Charlie accepts
+        // the penalty and skips their turn; play returns to Alice.
+        var nextPlayer = game.Players[0];
+
+        engine.AcceptDrawPenalty(game, penalizedPlayer.Id);
+
+        Assert.Equal(originalHandSize + 4, penalizedPlayer.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.Equal(0, game.PendingDrawAmount);
+        Assert.Null(game.PendingDrawType);
+    }
+
+    public static IEnumerable<object[]> FinalCardCases() =>
+        from rules in Enum.GetValues<UnoRuleSet>()
+        from type in Enum.GetValues<CardType>()
+        select new object[] { rules, type };
+
+    [Theory]
+    [MemberData(nameof(FinalCardCases))]
+    public void PlayLastCard_RequiresANumber(UnoRuleSet rules, CardType type)
+    {
+        var engine = new UnoGameEngine();
+        var game = UnoGameFactory.CreateGame(["Alice", "Bob"], new Random(11), rules);
+        var player = game.CurrentPlayer;
+        var wild = type is CardType.Wild or CardType.WildDrawFour;
+        var card = new UnoCard(wild ? CardColor.None : game.ActiveColor, type,
+            type == CardType.Number ? 5 : null);
+        foreach (var original in player.Hand.ToArray()) player.RemoveCard(original);
+        player.AddCard(card);
+
+        if (type == CardType.Number)
+        {
+            engine.PlayCard(game, player.Id, card);
+            Assert.Empty(player.Hand);
+            Assert.Equal(GameStatus.Completed, game.Status);
+            return;
+        }
+
+        var top = game.TopDiscard;
+        var deadline = game.TurnDeadlineUtc;
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            engine.PlayCard(game, player.Id, card, wild ? CardColor.Blue : CardColor.None));
+        Assert.Contains("number card", error.Message);
+        Assert.Same(card, Assert.Single(player.Hand));
+        Assert.Same(top, game.TopDiscard);
+        Assert.Same(player, game.CurrentPlayer);
+        Assert.Equal(deadline, game.TurnDeadlineUtc);
+        Assert.Equal(0, game.PendingDrawAmount);
+        Assert.Equal(GameStatus.InProgress, game.Status);
+        engine.DrawCard(game, player.Id);
+        Assert.Equal(2, player.Hand.Count);
+    }
+
+    [Fact]
+    public void FinalDrawTwo_CannotStackButCanAcceptPenalty()
+    {
+        var game = CreateHouseGameWithStackableDrawTwos(out var first, out var second);
+        var engine = new UnoGameEngine();
+        engine.PlayCard(game, game.CurrentPlayer.Id, first);
+        var recipient = game.CurrentPlayer;
+        foreach (var card in recipient.Hand.ToArray()) recipient.RemoveCard(card);
+        recipient.AddCard(second);
+        Assert.Throws<InvalidOperationException>(() => engine.PlayCard(game, recipient.Id, second));
+        Assert.Equal(2, game.PendingDrawAmount);
+        engine.AcceptDrawPenalty(game, recipient.Id);
+        Assert.Equal(3, recipient.Hand.Count);
+        Assert.Equal(GameStatus.InProgress, game.Status);
+    }
+
+    [Fact]
+    public void PlayDrawTwo_UnderHouseRules_RejectsMixedStacking()
+    {
+        var game = CreateHouseGameWithStackableDrawTwosAndWild(out var first, out var wild);
+        var engine = new UnoGameEngine();
+        engine.PlayCard(game, game.CurrentPlayer.Id, first);
+        var penalizedPlayer = game.CurrentPlayer;
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.PlayCard(game, penalizedPlayer.Id, wild, CardColor.Red));
+        Assert.Equal(2, game.PendingDrawAmount);
+    }
+
+    [Fact]
+    public void PlayWildDrawFour_UnderHouseRules_CanStackAndAccumulatesPenalty()
+    {
+        var game = CreateHouseGameWithStackableWildDrawFours(out var first, out var second);
+        var engine = new UnoGameEngine();
+
+        engine.PlayCard(game, game.CurrentPlayer.Id, first, CardColor.Red);
+        Assert.Equal(4, game.PendingDrawAmount);
+
+        engine.PlayCard(game, game.CurrentPlayer.Id, second, CardColor.Blue);
+
+        Assert.Equal(CardType.WildDrawFour, game.PendingDrawType);
+        Assert.Equal(8, game.PendingDrawAmount);
+        Assert.True(game.IsWildDrawFourChallengePending);
+        Assert.Equal(game.Players[2].Id, game.CurrentPlayer.Id);
+    }
+
+    [Fact]
     public void PlayWildDrawFour_CreatesPendingChallengeForNextPlayer()
     {
         var game = CreateGameWithCurrentPlayerCard(
@@ -153,8 +495,10 @@ public sealed class UnoGameEngineTests
         var challenger = game.CurrentPlayer;
         var challengerHandSize = challenger.Hand.Count;
 
-        engine.ChallengeWildDrawFour(game, challenger.Id);
+        var result = engine.ChallengeWildDrawFour(game, challenger.Id);
 
+        Assert.Equal(offender.Id, result.DrawnPlayerId);
+        Assert.Equal(4, result.DrawCount);
         Assert.Equal(offenderHandSizeAfterPlay + 4, offender.Hand.Count);
         Assert.Equal(challengerHandSize, challenger.Hand.Count);
         Assert.Equal(challenger.Id, game.CurrentPlayer.Id);
@@ -176,11 +520,230 @@ public sealed class UnoGameEngineTests
         var challengerHandSize = challenger.Hand.Count;
         var nextPlayer = game.Players[2];
 
+        var result = engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(challenger.Id, result.DrawnPlayerId);
+        Assert.Equal(6, result.DrawCount);
+        Assert.Equal(challengerHandSize + 6, challenger.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+    }
+
+    [Fact]
+    public void ChallengeWildDrawFour_UnderHouseRules_WhenIllegal_MakesOffenderDrawFour()
+    {
+        var game = CreateGameWithWildDrawFourLegality(true, out var card, UnoRuleSet.House);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+        var offenderHandSizeAfterPlay = offender.Hand.Count - 1;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+        var challenger = game.CurrentPlayer;
+        engine.ChallengeWildDrawFour(game, challenger.Id);
+
+        Assert.Equal(offenderHandSizeAfterPlay + 4, offender.Hand.Count);
+        Assert.Equal(challenger.Id, game.CurrentPlayer.Id);
+        Assert.False(game.IsWildDrawFourChallengePending);
+        Assert.Equal(0, game.PendingDrawAmount);
+    }
+
+    [Fact]
+    public void ChallengeWildDrawFour_UnderHouseRules_WhenLegal_MakesChallengerDrawSix()
+    {
+        var game = CreateGameWithWildDrawFourLegality(false, out var card, UnoRuleSet.House);
+        var engine = new UnoGameEngine();
+        var offender = game.CurrentPlayer;
+
+        engine.PlayCard(game, offender.Id, card, CardColor.Green);
+        var challenger = game.CurrentPlayer;
+        var challengerHandSize = challenger.Hand.Count;
+        var nextPlayer = game.Players[2];
         engine.ChallengeWildDrawFour(game, challenger.Id);
 
         Assert.Equal(challengerHandSize + 6, challenger.Hand.Count);
         Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
         Assert.False(game.IsWildDrawFourChallengePending);
+        Assert.Equal(0, game.PendingDrawAmount);
+    }
+
+    [Fact]
+    public void AutoResolveTimedOutTurn_DrawsOneCardAndAdvancesTurn()
+    {
+        var game = UnoGameFactory.CreateGame(["Alice", "Bob"], new Random(17));
+        var engine = new UnoGameEngine();
+        var timedOutPlayer = game.CurrentPlayer;
+        var nextPlayer = game.Players[1];
+        var originalHandSize = timedOutPlayer.Hand.Count;
+        var deadline = game.TurnDeadlineUtc;
+        Assert.False(engine.AutoResolveTimedOutTurn(game, deadline.AddTicks(-1)));
+        Assert.Equal(timedOutPlayer.Id, game.CurrentPlayer.Id);
+        Assert.True(engine.AutoResolveTimedOutTurn(game, deadline.AddSeconds(1)));
+        Assert.Equal(originalHandSize + 1, timedOutPlayer.Hand.Count);
+        Assert.Equal(nextPlayer.Id, game.CurrentPlayer.Id);
+        Assert.True(game.TurnDeadlineUtc > deadline);
+    }
+
+    [Fact]
+    public void PlayCard_LeavingOneCard_OpensUnoCallWindow()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var player = game.CurrentPlayer;
+
+        engine.PlayCard(game, player.Id, card);
+
+        Assert.Equal(player.Id, game.PlayerAwaitingUnoCallId);
+
+        engine.CallUno(game, player.Id);
+
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
+    public void CallUno_AfterGracePeriodExpires_ThrowsAndLeavesTargetAvailableForCatch()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+        var catcher = game.CurrentPlayer;
+
+        Thread.Sleep(3100);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CallUno(game, target.Id));
+        Assert.Equal(target.Id, game.PlayerAwaitingUnoCallId);
+
+        var originalHandSize = target.Hand.Count;
+        engine.CatchUno(game, catcher.Id, target.Id);
+
+        Assert.Equal(originalHandSize + 2, target.Hand.Count);
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
+    public void CatchUno_WhenCallWasMissed_TargetDrawsTwoCards()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+
+        var catcher = game.CurrentPlayer;
+        var originalTargetHandSize = target.Hand.Count;
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CatchUno(game, catcher.Id, target.Id));
+        Thread.Sleep(3100);
+        engine.CatchUno(game, catcher.Id, target.Id);
+
+        Assert.Equal(originalTargetHandSize + 2, target.Hand.Count);
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+        Assert.Equal(catcher.Id, game.CurrentPlayer.Id);
+    }
+
+    [Fact]
+    public void DrawCard_ByNextPlayer_ClosesPreviousPlayersUnoCallWindow()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var previousPlayer = game.CurrentPlayer;
+
+        engine.PlayCard(game, previousPlayer.Id, card);
+        Assert.Equal(previousPlayer.Id, game.PlayerAwaitingUnoCallId);
+
+        var nextPlayer = game.CurrentPlayer;
+        Thread.Sleep(3100);
+        engine.DrawCard(game, nextPlayer.Id);
+
+        Assert.Null(game.PlayerAwaitingUnoCallId);
+    }
+
+    [Fact]
+    public void CatchUno_AfterCallWindowExpires_Throws()
+    {
+        var game = CreateGameWithTwoCardCurrentPlayer(out var card);
+        var engine = new UnoGameEngine();
+        var target = game.CurrentPlayer;
+
+        engine.PlayCard(game, target.Id, card);
+        var catcher = game.CurrentPlayer;
+        Thread.Sleep(3100);
+        engine.DrawCard(game, catcher.Id);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            engine.CatchUno(game, catcher.Id, target.Id));
+    }
+
+    private static UnoGameState CreateHouseGameWithStackableDrawTwos(
+        out UnoCard firstDrawTwo,
+        out UnoCard secondDrawTwo)
+    {
+        for (var seed = 0; seed < 2000; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"], new Random(seed), UnoRuleSet.House);
+            var first = game.CurrentPlayer.Hand.FirstOrDefault(card =>
+                card.Type == CardType.DrawTwo && card.Color == game.ActiveColor);
+            var second = game.Players[1].Hand.FirstOrDefault(card =>
+                card.Type == CardType.DrawTwo);
+            if (first is not null && second is not null)
+            {
+                firstDrawTwo = first;
+                secondDrawTwo = second;
+                return game;
+            }
+        }
+
+        throw new InvalidOperationException("Could not create a game with stackable Draw Two cards.");
+    }
+
+    private static UnoGameState CreateHouseGameWithStackableDrawTwosAndWild(
+        out UnoCard firstDrawTwo,
+        out UnoCard wildCard)
+    {
+        for (var seed = 0; seed < 2000; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"], new Random(seed), UnoRuleSet.House);
+            var first = game.CurrentPlayer.Hand.FirstOrDefault(card =>
+                card.Type == CardType.DrawTwo && card.Color == game.ActiveColor);
+            var wild = game.Players[1].Hand.FirstOrDefault(card =>
+                card.Type == CardType.Wild);
+            if (first is not null && wild is not null)
+            {
+                firstDrawTwo = first;
+                wildCard = wild;
+                return game;
+            }
+        }
+
+        throw new InvalidOperationException("Could not create a game with a Draw Two and a Wild in the next hand.");
+    }
+
+    private static UnoGameState CreateHouseGameWithStackableWildDrawFours(
+        out UnoCard firstWildDrawFour,
+        out UnoCard secondWildDrawFour)
+    {
+        for (var seed = 0; seed < 3000; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"], new Random(seed), UnoRuleSet.House);
+            var first = game.CurrentPlayer.Hand.FirstOrDefault(card =>
+                card.Type == CardType.WildDrawFour);
+            var second = game.Players[1].Hand.FirstOrDefault(card =>
+                card.Type == CardType.WildDrawFour);
+            if (first is not null && second is not null)
+            {
+                firstWildDrawFour = first;
+                secondWildDrawFour = second;
+                return game;
+            }
+        }
+
+        throw new InvalidOperationException("Could not create a game with stackable Wild Draw Four cards.");
     }
 
     private static UnoGameState CreateGameWithPlayableNumberCard(
@@ -260,13 +823,15 @@ public sealed class UnoGameEngineTests
 
     private static UnoGameState CreateGameWithWildDrawFourLegality(
         bool shouldBeIllegal,
-        out UnoCard card)
+        out UnoCard card,
+        UnoRuleSet ruleSet = UnoRuleSet.Official)
     {
         for (var seed = 0; seed < 500; seed++)
         {
             var game = UnoGameFactory.CreateGame(
                 ["Alice", "Bob", "Charlie"],
-                new Random(seed));
+                new Random(seed),
+                ruleSet);
 
             var candidate = game.CurrentPlayer.Hand.FirstOrDefault(
                 handCard => handCard.Type == CardType.WildDrawFour);
@@ -318,4 +883,48 @@ public sealed class UnoGameEngineTests
         throw new InvalidOperationException(
             $"Could not create a game with a playable {cardType} card.");
     }
+
+    private static UnoGameState CreateGameWithTwoCardCurrentPlayer(
+        out UnoCard card)
+    {
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var game = UnoGameFactory.CreateGame(
+                ["Alice", "Bob", "Charlie"],
+                new Random(seed));
+            var player = game.CurrentPlayer;
+
+            var candidate = player.Hand.FirstOrDefault(handCard =>
+                handCard.Type == CardType.Number &&
+                (handCard.Color == game.ActiveColor ||
+                 handCard.Number == game.TopDiscard.Number));
+
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            var secondCard = player.Hand.FirstOrDefault(
+                handCard => handCard != candidate);
+            if (secondCard is null)
+            {
+                continue;
+            }
+
+            foreach (var handCard in player.Hand.ToList())
+            {
+                if (handCard != candidate && handCard != secondCard)
+                {
+                    player.RemoveCard(handCard);
+                }
+            }
+
+            card = candidate;
+            return game;
+        }
+
+        throw new InvalidOperationException(
+            "Could not create a game with a playable card and exactly two cards in hand.");
+    }
+
 }

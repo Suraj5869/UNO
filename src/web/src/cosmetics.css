@@ -1,0 +1,10 @@
+[data-cosmetic="avatar_gold"].profile-circle,[data-cosmetic="avatar_gold"] .profile-circle,[data-avatar="avatar_gold"] .my-seat-avatar { background:linear-gradient(145deg,#ffe49a,#b77916); color:#241600; }
+[data-cosmetic="avatar_neon"].profile-circle,[data-cosmetic="avatar_neon"] .profile-circle,[data-avatar="avatar_neon"] .my-seat-avatar { background:linear-gradient(145deg,#00e5ba,#3357c9); color:white; }
+[data-cosmetic="avatar_season"].profile-circle,[data-cosmetic="avatar_season"] .profile-circle,[data-avatar="avatar_season"] .my-seat-avatar { background:linear-gradient(145deg,#ff83d2,#6735c4); color:white; }
+[data-cosmetic="card_back_crimson"],[data-card-back="card_back_crimson"] .card-back,[data-card-back="card_back_crimson"] .back-cards span { background:linear-gradient(145deg,#ff596a,#710b29)!important; }
+[data-cosmetic="card_back_royal"],[data-card-back="card_back_royal"] .card-back,[data-card-back="card_back_royal"] .back-cards span { background:linear-gradient(145deg,#a48aff,#382078)!important; }
+[data-cosmetic="card_back_season"],[data-card-back="card_back_season"] .card-back,[data-card-back="card_back_season"] .back-cards span { background:linear-gradient(145deg,#00cbb8,#593ac9)!important; }
+[data-cosmetic="table_theme_ocean"],[data-table-theme="table_theme_ocean"] .arena-table { background:radial-gradient(ellipse,#247a9a,#102d50)!important; }
+[data-cosmetic="table_theme_midnight"],[data-table-theme="table_theme_midnight"] .arena-table { background:radial-gradient(ellipse,#343c65,#101426)!important; }
+[data-cosmetic="table_theme_season"],[data-table-theme="table_theme_season"] .arena-table { background:radial-gradient(ellipse,#278e6a,#103d32)!important; }
+.collection-item .collection-primary { width:100%; margin-top:.4rem; }

@@ -24,18 +24,34 @@ public sealed class UnoGameEngine
         EnsureGameInProgress(game);
         EnsureCurrentPlayer(game, playerId);
 
-        if (game.IsWildDrawFourChallengePending)
+        var player = game.CurrentPlayer;
+        var isStackingDrawPenalty = game.PendingDrawAmount > 0;
+
+        if (game.IsWildDrawFourChallengePending &&
+            !(game.RuleSet == UnoRuleSet.House &&
+              game.PendingDrawType == CardType.WildDrawFour))
         {
             throw new InvalidOperationException(
                 "Resolve the Wild Draw Four challenge before playing a card.");
         }
 
-        var player = game.CurrentPlayer;
+        if (isStackingDrawPenalty &&
+            (game.RuleSet != UnoRuleSet.House ||
+             card.Type != game.PendingDrawType))
+        {
+            throw new InvalidOperationException(
+                "Only the same draw-card type may be stacked under House Rules.");
+        }
 
         if (!player.Hand.Contains(card))
         {
             throw new InvalidOperationException(
                 "The selected card is not in the current player's hand.");
+        }
+
+        if (player.Hand.Count == 1 && card.Type != CardType.Number)
+        {
+            throw new InvalidOperationException("Your last card must be a number card.");
         }
 
         if (game.JustDrawnCard is not null &&
@@ -45,7 +61,11 @@ public sealed class UnoGameEngine
                 "After drawing, only the drawn card may be played this turn.");
         }
 
-        if (!IsPlayable(card, game.TopDiscard, game.ActiveColor))
+        if (isStackingDrawPenalty && card.Type == game.PendingDrawType)
+        {
+            // Stacking is a House Rules exception to normal color matching.
+        }
+        else if (!IsPlayable(card, game.TopDiscard, game.ActiveColor))
         {
             throw new InvalidOperationException(
                 "The selected card does not match the active color or top card.");
@@ -72,13 +92,23 @@ public sealed class UnoGameEngine
                 handCard.Color == game.ActiveColor &&
                 handCard.Type is not (CardType.Wild or CardType.WildDrawFour));
 
+        game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
         player.RemoveCard(card);
+        if (player.Hand.Count == 1)
+        {
+            game.PlayerAwaitingUnoCallId = player.Id;
+            game.UnoCallDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(3);
+        }
         game.MutableDiscardPile.Add(card);
+        game.CardsPlayed++;
         game.JustDrawnCard = null;
         game.ActiveColor = isWild ? chosenColor : card.Color;
 
         if (card.Type == CardType.WildDrawFour)
         {
+            game.PendingDrawType = CardType.WildDrawFour;
+            game.PendingDrawAmount += 4;
             game.WildDrawFourOffenderIndex = game.CurrentPlayerIndex;
             game.WildDrawFourWasIllegal = wildDrawFourWasIllegal;
             AdvanceTurn(game);
@@ -97,9 +127,18 @@ public sealed class UnoGameEngine
                 break;
 
             case CardType.DrawTwo:
-                AdvanceTurn(game);
-                DrawCards(game, 2);
-                AdvanceTurn(game);
+                if (game.RuleSet == UnoRuleSet.House)
+                {
+                    game.PendingDrawType = CardType.DrawTwo;
+                    game.PendingDrawAmount += 2;
+                    AdvanceTurn(game);
+                }
+                else
+                {
+                    AdvanceTurn(game);
+                    DrawCards(game, 2);
+                    AdvanceTurn(game);
+                }
                 break;
 
             default:
@@ -107,10 +146,72 @@ public sealed class UnoGameEngine
                 break;
         }
 
-        if (player.Hand.Count == 0)
+        if (player.Hand.Count == 0 && game.PendingDrawAmount == 0)
         {
             game.Status = GameStatus.Completed;
         }
+    }
+
+    /// <summary>Removes a participant who explicitly leaves the room.</summary>
+    public bool RemovePlayer(UnoGameState game, Guid playerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        if (game.Status != GameStatus.InProgress) return false;
+
+        var index = game.MutablePlayers.FindIndex(player => player.Id == playerId);
+        if (index < 0) return false;
+
+        var wasCurrentPlayer = index == game.CurrentPlayerIndex;
+        var nextPlayerId = game.Players[(index + game.TurnDirection + game.Players.Count) % game.Players.Count].Id;
+        var activePlayerId = game.CurrentPlayer.Id;
+        var departed = game.Players[index];
+        var offenderId = game.WildDrawFourOffenderIndex is { } offender
+            ? game.Players[offender].Id : (Guid?)null;
+
+        foreach (var card in departed.Hand.ToArray())
+        {
+            departed.RemoveCard(card);
+            game.MutableDrawPile.Add(card);
+        }
+        for (var i = game.MutableDrawPile.Count - 1; i > 0; i--)
+        {
+            var j = _random.Next(i + 1);
+            (game.MutableDrawPile[i], game.MutableDrawPile[j]) =
+                (game.MutableDrawPile[j], game.MutableDrawPile[i]);
+        }
+        game.MutablePlayers.RemoveAt(index);
+        if (game.PlayerAwaitingUnoCallId == playerId)
+        {
+            game.PlayerAwaitingUnoCallId = null;
+            game.UnoCallDeadlineUtc = null;
+        }
+        if (game.Players.Count < 2)
+        {
+            game.Status = GameStatus.Completed;
+            game.CurrentPlayerIndex = 0;
+            game.PlayerAwaitingUnoCallId = null;
+            game.UnoCallDeadlineUtc = null;
+            game.JustDrawnCard = null;
+            ClearPendingDrawPenalty(game);
+            return true;
+        }
+
+        game.CurrentPlayerIndex = game.MutablePlayers.FindIndex(p =>
+            p.Id == (wasCurrentPlayer ? nextPlayerId : activePlayerId));
+        game.WildDrawFourOffenderIndex = offenderId.HasValue && offenderId != playerId
+            ? game.MutablePlayers.FindIndex(p => p.Id == offenderId.Value) : null;
+        if (game.WildDrawFourOffenderIndex == game.CurrentPlayerIndex)
+            game.WildDrawFourOffenderIndex = null;
+        if (!game.WildDrawFourOffenderIndex.HasValue)
+            game.WildDrawFourWasIllegal = null;
+
+        if (wasCurrentPlayer)
+        {
+            game.JustDrawnCard = null;
+            game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(UnoGameState.TurnDuration);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -129,12 +230,19 @@ public sealed class UnoGameEngine
                 "Resolve the Wild Draw Four challenge before drawing.");
         }
 
+        if (game.PendingDrawAmount > 0)
+        {
+            throw new InvalidOperationException(
+                "Resolve the pending draw penalty before drawing a normal card.");
+        }
+
         if (game.JustDrawnCard is not null)
         {
             throw new InvalidOperationException(
                 "The player has already drawn a card this turn.");
         }
 
+        game.PlayerAwaitingUnoCallId = null;
         var drawnCards = DrawCards(game, 1);
         if (drawnCards.Count == 0)
         {
@@ -172,6 +280,7 @@ public sealed class UnoGameEngine
         }
 
         game.JustDrawnCard = null;
+        game.PlayerAwaitingUnoCallId = null;
         AdvanceTurn(game);
     }
 
@@ -188,9 +297,11 @@ public sealed class UnoGameEngine
 
         var offenderIndex = game.WildDrawFourOffenderIndex!.Value;
         var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
+        var penaltyAmount = game.PendingDrawAmount;
 
-        DrawCards(game, 4);
-        ClearWildDrawFourChallenge(game);
+        game.PlayerAwaitingUnoCallId = null;
+        DrawCards(game, penaltyAmount);
+        ClearPendingDrawPenalty(game);
 
         if (offenderHadNoCards)
         {
@@ -206,7 +317,7 @@ public sealed class UnoGameEngine
     /// the color active before the Wild Draw Four, the challenge succeeds
     /// and the offender draws four. Otherwise, the challenger draws six.
     /// </summary>
-    public void ChallengeWildDrawFour(UnoGameState game, Guid playerId)
+    public WildDrawFourChallengeResult ChallengeWildDrawFour(UnoGameState game, Guid playerId)
     {
         ArgumentNullException.ThrowIfNull(game);
         EnsureGameInProgress(game);
@@ -216,24 +327,113 @@ public sealed class UnoGameEngine
         var offenderIndex = game.WildDrawFourOffenderIndex!.Value;
         var challengeSucceeded = game.WildDrawFourWasIllegal!.Value;
         var offenderHadNoCards = game.Players[offenderIndex].Hand.Count == 0;
+        var penaltyAmount = game.PendingDrawAmount;
 
-        ClearWildDrawFourChallenge(game);
+        ClearPendingDrawPenalty(game);
+        game.PlayerAwaitingUnoCallId = null;
 
         if (challengeSucceeded)
         {
-            DrawCards(game, 4, offenderIndex);
+            var actualDrawCount = DrawCards(game, penaltyAmount, offenderIndex).Count;
             // The challenger keeps the turn after a successful challenge.
-            return;
+            return new WildDrawFourChallengeResult(game.Players[offenderIndex].Id, actualDrawCount);
         }
 
-        DrawCards(game, 6);
+        // A failed challenge adds the standard two-card challenge penalty
+        // on top of any accumulated Wild Draw Four stack.
+        var failedChallengePenalty = penaltyAmount + 2;
+        var actualFailedDrawCount = DrawCards(game, failedChallengePenalty).Count;
         if (offenderHadNoCards)
         {
             game.Status = GameStatus.Completed;
-            return;
+            return new WildDrawFourChallengeResult(playerId, actualFailedDrawCount);
         }
 
         AdvanceTurn(game);
+        return new WildDrawFourChallengeResult(playerId, actualFailedDrawCount);
+    }
+
+    /// <summary>
+    /// Records that a player has called UNO after being reduced to one card.
+    /// This must happen before the next player begins an action.
+    /// </summary>
+    public void CallUno(UnoGameState game, Guid playerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        EnsureGameInProgress(game);
+
+        if (game.PlayerAwaitingUnoCallId != playerId)
+        {
+            throw new InvalidOperationException(
+                "This player does not have an outstanding UNO call.");
+        }
+
+        if (game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow >= deadline)
+        {
+            throw new InvalidOperationException(
+                "The three-second UNO call window has expired.");
+        }
+
+        var player = game.Players.FirstOrDefault(candidate => candidate.Id == playerId);
+        if (player is null || player.Hand.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "UNO can only be called when the player has exactly one card.");
+        }
+
+        game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
+    }
+
+    /// <summary>
+    /// Catches a player who has one card but has not called UNO. Any other
+    /// participant may catch them while the call window remains open.
+    /// </summary>
+    public void CatchUno(
+        UnoGameState game,
+        Guid catcherPlayerId,
+        Guid targetPlayerId)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        EnsureGameInProgress(game);
+
+        if (game.PlayerAwaitingUnoCallId != targetPlayerId)
+        {
+            throw new InvalidOperationException(
+                "There is no outstanding missed UNO call for that player.");
+        }
+
+        if (game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow < deadline)
+        {
+            throw new InvalidOperationException("Give the player three seconds to call UNO before catching them.");
+        }
+
+        if (catcherPlayerId == targetPlayerId ||
+            !game.Players.Any(player => player.Id == catcherPlayerId))
+        {
+            throw new InvalidOperationException(
+                "A different player in this game must catch the missed UNO call.");
+        }
+
+        var targetIndex = -1;
+        for (var index = 0; index < game.Players.Count; index++)
+        {
+            if (game.Players[index].Id == targetPlayerId)
+            {
+                targetIndex = index;
+                break;
+            }
+        }
+
+        if (targetIndex < 0 || game.Players[targetIndex].Hand.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "The target player must have exactly one card.");
+        }
+
+        game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
+        DrawCards(game, 2, targetIndex);
     }
 
     private static bool IsPlayable(
@@ -269,6 +469,16 @@ public sealed class UnoGameEngine
 
     private static void EnsureCurrentPlayer(UnoGameState game, Guid playerId)
     {
+        if (DateTimeOffset.UtcNow >= game.TurnDeadlineUtc)
+            throw new InvalidOperationException("The turn deadline has expired.");
+
+        if (game.PlayerAwaitingUnoCallId is not null &&
+            game.PlayerAwaitingUnoCallId != playerId &&
+            game.UnoCallDeadlineUtc is { } deadline && DateTimeOffset.UtcNow < deadline)
+        {
+            throw new InvalidOperationException("Wait up to three seconds for the player to call UNO.");
+        }
+
         if (game.CurrentPlayer.Id != playerId)
         {
             throw new InvalidOperationException(
@@ -285,10 +495,67 @@ public sealed class UnoGameEngine
         }
     }
 
-    private static void ClearWildDrawFourChallenge(UnoGameState game)
+    /// <summary>
+    /// Accepts a pending House Rules Draw Two stack and loses the turn.
+    /// </summary>
+    public void AcceptDrawPenalty(UnoGameState game, Guid playerId)
     {
+        ArgumentNullException.ThrowIfNull(game);
+        EnsureGameInProgress(game);
+        EnsureCurrentPlayer(game, playerId);
+
+        if (game.PendingDrawAmount <= 0 || game.PendingDrawType is null)
+        {
+            throw new InvalidOperationException(
+                "There is no pending draw penalty to accept.");
+        }
+
+        if (game.IsWildDrawFourChallengePending)
+        {
+            throw new InvalidOperationException(
+                "A Wild Draw Four must be accepted or challenged.");
+        }
+
+        var penaltyAmount = game.PendingDrawAmount;
+        game.PlayerAwaitingUnoCallId = null;
+        ClearPendingDrawPenalty(game);
+        DrawCards(game, penaltyAmount);
+        AdvanceTurn(game);
+    }
+
+    private static void ClearPendingDrawPenalty(UnoGameState game)
+    {
+        game.PendingDrawType = null;
+        game.PendingDrawAmount = 0;
         game.WildDrawFourOffenderIndex = null;
         game.WildDrawFourWasIllegal = null;
+    }
+
+    /// <summary>Automatically resolves an expired turn and advances play.</summary>
+    public bool AutoResolveTimedOutTurn(UnoGameState game, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        if (game.Status != GameStatus.InProgress || now < game.TurnDeadlineUtc) return false;
+        game.PlayerAwaitingUnoCallId = null;
+        game.UnoCallDeadlineUtc = null;
+        var alreadyDrew = game.JustDrawnCard is not null;
+        game.JustDrawnCard = null;
+        var wildDrawFourOffenderIndex = game.WildDrawFourOffenderIndex;
+        var offenderHadNoCards = wildDrawFourOffenderIndex.HasValue &&
+            game.Players[wildDrawFourOffenderIndex.Value].Hand.Count == 0;
+        var cardsToDraw = game.PendingDrawAmount > 0 ? game.PendingDrawAmount : alreadyDrew ? 0 : 1;
+        ClearPendingDrawPenalty(game);
+        DrawCards(game, cardsToDraw);
+
+        if (offenderHadNoCards)
+        {
+            game.Status = GameStatus.Completed;
+            return true;
+        }
+
+        AdvanceTurn(game);
+        game.TurnDeadlineUtc = now.AddSeconds(UnoGameState.TurnDuration);
+        return true;
     }
 
     private void AdvanceTurn(UnoGameState game, int steps = 1)
@@ -299,6 +566,7 @@ public sealed class UnoGameEngine
                 (game.CurrentPlayerIndex + game.TurnDirection + game.Players.Count)
                 % game.Players.Count;
         }
+        game.TurnDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(UnoGameState.TurnDuration);
     }
 
     private List<UnoCard> DrawCards(
@@ -351,3 +619,7 @@ public sealed class UnoGameEngine
         game.MutableDrawPile.AddRange(recyclableCards);
     }
 }
+
+
+/// <summary>Identifies the recipient and size of a resolved Wild Draw Four penalty.</summary>
+public sealed record WildDrawFourChallengeResult(Guid DrawnPlayerId, int DrawCount);

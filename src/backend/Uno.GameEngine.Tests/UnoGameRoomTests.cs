@@ -1,0 +1,252 @@
+namespace Uno.GameEngine.Tests;
+
+public sealed class UnoGameRoomTests
+{
+    [Fact]
+    public void CreateRoom_AddsCreatorAndDefaultsToOfficialRules()
+    {
+        var room = new UnoGameRoom("Alice");
+
+        Assert.Equal(UnoRoomStatus.Waiting, room.Status);
+        Assert.Equal(UnoRuleSet.Official, room.RuleSet);
+        Assert.Single(room.Players);
+        Assert.Equal(room.CreatorPlayerId, room.Players[0].Id);
+        Assert.True(room.Players[0].IsCreator);
+        Assert.Equal(6, room.Code.Length);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(11)]
+    public void CreateRoom_WithInvalidCapacity_Throws(int capacity)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new UnoGameRoom("Alice", capacity));
+    }
+
+    [Fact]
+    public void Join_AddsPlayerWhileRoomIsWaiting()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+
+        var bob = room.Join(" Bob ");
+
+        Assert.Equal("Bob", bob.DisplayName);
+        Assert.Equal(2, room.Players.Count);
+        Assert.False(bob.IsCreator);
+    }
+
+    [Fact]
+    public void Join_WhenRoomIsFull_Throws()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 2);
+        room.Join("Bob");
+
+        Assert.Throws<InvalidOperationException>(() => room.Join("Charlie"));
+    }
+
+    [Fact]
+    public void SetRuleSet_CreatorCanChooseHouseRulesBeforeStart()
+    {
+        var room = new UnoGameRoom("Alice");
+
+        room.SetRuleSet(room.CreatorPlayerId, UnoRuleSet.House);
+
+        Assert.Equal(UnoRuleSet.House, room.RuleSet);
+    }
+
+    [Fact]
+    public void SetRuleSet_NonCreatorCannotChangeRules()
+    {
+        var room = new UnoGameRoom("Alice");
+        var bob = room.Join("Bob");
+
+        Assert.Throws<UnauthorizedAccessException>(
+            () => room.SetRuleSet(bob.Id, UnoRuleSet.House));
+        Assert.Equal(UnoRuleSet.Official, room.RuleSet);
+    }
+
+    [Fact]
+    public void StartGame_RequiresAtLeastTwoPlayers()
+    {
+        var room = new UnoGameRoom("Alice");
+
+        Assert.Throws<InvalidOperationException>(
+            () => room.StartGame(room.CreatorPlayerId));
+        Assert.Equal(UnoRoomStatus.Waiting, room.Status);
+    }
+
+    [Fact]
+    public void StartGame_CreatorStartsGameAndMapsRoomPlayersToEnginePlayers()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var bob = room.Join("Bob");
+        room.SetRuleSet(room.CreatorPlayerId, UnoRuleSet.House);
+
+        var game = room.StartGame(room.CreatorPlayerId, new Random(123));
+
+        Assert.Equal(UnoRoomStatus.InProgress, room.Status);
+        Assert.Same(game, room.Game);
+        Assert.Equal(UnoRuleSet.House, game.RuleSet);
+        Assert.Equal(room.Players.Count, game.Players.Count);
+        Assert.Equal(game.Players[0].Id, room.Players[0].GamePlayerId);
+        Assert.Equal(game.Players[1].Id, bob.GamePlayerId);
+    }
+
+    [Fact]
+    public void StartGame_NonCreatorCannotStart()
+    {
+        var room = new UnoGameRoom("Alice");
+        var bob = room.Join("Bob");
+
+        Assert.Throws<UnauthorizedAccessException>(
+            () => room.StartGame(bob.Id));
+        Assert.Equal(UnoRoomStatus.Waiting, room.Status);
+    }
+
+    [Fact]
+    public void StartGame_LocksMembershipAndRuleSelection()
+    {
+        var room = new UnoGameRoom("Alice");
+        room.Join("Bob");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+
+        Assert.Throws<InvalidOperationException>(() => room.Join("Charlie"));
+        Assert.Throws<InvalidOperationException>(
+            () => room.SetRuleSet(room.CreatorPlayerId, UnoRuleSet.House));
+        Assert.Throws<InvalidOperationException>(
+            () => room.StartGame(room.CreatorPlayerId));
+    }
+
+    [Fact]
+    public void PrepareRematch_ResetsRoomAndPromotesOptedInPlayerToHost()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var bob = room.Join("Bob");
+        room.Join("Charlie");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+        room.Game!.Status = GameStatus.Completed;
+
+        room.PrepareRematch(bob.Id);
+
+        Assert.Equal(UnoRoomStatus.Waiting, room.Status);
+        Assert.Null(room.Game);
+        Assert.Single(room.Players);
+        Assert.Equal(bob.Id, room.CreatorPlayerId);
+        Assert.True(room.Players[0].IsCreator);
+        Assert.Equal(bob.Id, room.Players[0].Id);
+        Assert.Null(room.Players[0].GamePlayerId);
+    }
+
+    [Fact]
+    public void JoinRematch_AddsPreviousPlayerWithoutReplacingNewHost()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        var alice = room.Players[0];
+        var bob = room.Join("Bob");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+        room.Game!.Status = GameStatus.Completed;
+        room.PrepareRematch(bob.Id);
+
+        var returningAlice = room.JoinRematch(alice.Id, alice.DisplayName);
+        // The opted-in player remains the host when another player joins.
+        Assert.True(room.Players[0].IsCreator);
+        Assert.False(returningAlice.IsCreator);
+        Assert.Equal(2, room.Players.Count);
+    }
+
+    [Fact]
+    public void PrepareRematch_WhenGameIsNotCompleted_Throws()
+    {
+        var room = new UnoGameRoom("Alice");
+        room.Join("Bob");
+        room.StartGame(room.CreatorPlayerId, new Random(123));
+
+        Assert.Throws<InvalidOperationException>(() => room.PrepareRematch(room.CreatorPlayerId));
+    }
+
+    [Fact]
+    public void Leave_DuringGame_RemovesPlayerAndAdvancesIfItWasTheirTurn()
+    {
+        var room = new UnoGameRoom("Alice", maximumPlayers: 3);
+        room.Join("Bob");
+        room.Join("Charlie");
+        var game = room.StartGame(room.CreatorPlayerId, new Random(123));
+        var leavingGamePlayerId = game.CurrentPlayer.Id;
+        var leavingRoomPlayer = room.Players.Single(player => player.GamePlayerId == leavingGamePlayerId);
+        var nextGamePlayerId = game.Players[(game.CurrentPlayerIndex + 1) % game.Players.Count].Id;
+
+        Assert.True(room.Leave(leavingRoomPlayer.Id));
+
+        Assert.DoesNotContain(room.Players, player => player.Id == leavingRoomPlayer.Id);
+        Assert.DoesNotContain(game.Players, player => player.Id == leavingGamePlayerId);
+        Assert.Equal(nextGamePlayerId, game.CurrentPlayer.Id);
+        Assert.Equal(2, game.Players.Count);
+    }
+
+    [Theory]
+    [InlineData(0, 3)]
+    [InlineData(2, 1)]
+    [InlineData(3, 2)]
+    public void Leave_ActiveSeatDuringReverse_PassesTurnToPreviousSeat(int active, int next)
+    {
+        var room = new UnoGameRoom("Alice");
+        foreach (var name in new[] { "Bob", "Charlie", "Dana" }) room.Join(name);
+        var game = room.StartGame(room.CreatorPlayerId, new Random(12));
+        game.TurnDirection = -1;
+        game.CurrentPlayerIndex = active;
+        var successor = game.Players[next];
+        game.JustDrawnCard = game.CurrentPlayer.Hand[0];
+        game.TurnDeadlineUtc = DateTimeOffset.UnixEpoch;
+
+        Assert.True(room.Leave(room.Players[active].Id));
+
+        Assert.Same(successor, game.CurrentPlayer);
+        Assert.False(game.CanPassAfterDraw);
+        Assert.True(game.TurnDeadlineUtc > DateTimeOffset.UnixEpoch);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Leave_InactiveSeat_PreservesActiveTurnAfterDraw(int leaving)
+    {
+        var room = new UnoGameRoom("Alice");
+        room.Join("Bob");
+        room.Join("Charlie");
+        var game = room.StartGame(room.CreatorPlayerId, new Random(12));
+        game.CurrentPlayerIndex = 1;
+        var active = game.CurrentPlayer;
+        var drawn = active.Hand[0];
+        game.JustDrawnCard = drawn;
+        var deadline = game.TurnDeadlineUtc;
+
+        Assert.True(room.Leave(room.Players[leaving].Id));
+
+        Assert.Same(active, game.CurrentPlayer);
+        Assert.Same(drawn, game.JustDrawnCardForCurrentPlayer);
+        Assert.Equal(deadline, game.TurnDeadlineUtc);
+        new UnoGameEngine().PassAfterDraw(game, active.Id);
+    }
+
+    [Fact]
+    public void Leave_RoomCreator_PromotesAnotherPlayer()
+    {
+        var room = new UnoGameRoom("Alice");
+        var bob = room.Join("Bob");
+
+        Assert.True(room.Leave(room.CreatorPlayerId));
+
+        Assert.Equal(bob.Id, room.CreatorPlayerId);
+        Assert.True(bob.IsCreator);
+        Assert.Single(room.Players);
+    }
+
+    [Fact]
+    public void CreateRoom_WithHouseRules_PreservesSelectedPreset()
+    {
+        var room = new UnoGameRoom("Alice", ruleSet: UnoRuleSet.House);
+
+        Assert.Equal(UnoRuleSet.House, room.RuleSet);
+    }
+}
