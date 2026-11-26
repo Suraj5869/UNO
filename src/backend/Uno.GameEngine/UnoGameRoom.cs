@@ -229,7 +229,7 @@ public sealed class UnoGameRoom
         {
             for (var index = 0; index < span.Length; index++)
             {
-                span[index] = alphabet[Random.Shared.Next(alphabet.Length)];
+                span[index] = alphabet[System.Security.Cryptography.RandomNumberGenerator.GetInt32(alphabet.Length)];
             }
         });
     }
