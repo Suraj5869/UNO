@@ -74,7 +74,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
-            return Conflict(new { message = "Email or username is already registered." });
+            return Conflict(new { message = "Unable to create an account with these details." });
         }
     }
 
