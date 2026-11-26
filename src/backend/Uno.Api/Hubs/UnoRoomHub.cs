@@ -10,6 +10,13 @@ namespace Uno.Api.Hubs;
 /// </summary>
 public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publisher) : Hub
 {
+    private void RequireSession(string code, string token)
+    {
+        var principal = Context.User;
+        Guid? account = Guid.TryParse(principal?.FindFirst("sub")?.Value, out var user) ? user : null;
+        Guid? session = Guid.TryParse(principal?.FindFirst("sid")?.Value, out var sid) ? sid : null;
+        roomStore.RequireSession(code, token, account, session);
+    }
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         roomStore.Disconnected(Context.ConnectionId);
@@ -18,6 +25,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
     public async Task<RoomResponse> JoinRoom(string code, string accessToken)
     {
+        RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomRealtimePublisher.PlayerGroup(code, playerId));
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomRealtimePublisher.RoomGroup(code));
@@ -48,6 +56,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     public async Task LeaveRoom(string code, string accessToken)
     {
         RequireConnection(code, accessToken);
+        RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
         roomStore.Leave(code, accessToken);
 
@@ -67,7 +76,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         RequireConnection(code, accessToken);
         return Task.FromResult(roomStore.ExecuteLocked(code, room =>
         {
-            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            RequireSession(code, accessToken);
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             return GameStateResponse.From(room, playerId);
         }));
     }
@@ -163,7 +173,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     {
         var player = roomStore.ExecuteLocked(code, room =>
         {
-            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            RequireSession(code, accessToken);
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
             var participant = room.Players.First(candidate => candidate.Id == playerId);
             new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId));
@@ -198,7 +209,8 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     {
         var gameAction = roomStore.ExecuteLocked(code, room =>
         {
-            var playerId = roomStore.AuthorizeParticipant(code, accessToken);
+            RequireSession(code, accessToken);
+        var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
             var wasCurrent = room.Game is {} before && before.CurrentPlayer.Id == GetGamePlayerId(room,playerId);
             action(room, playerId);
@@ -216,6 +228,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
     private void RequireConnection(string code, string accessToken)
     {
+        RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
         if (!roomStore.AuthorizedConnections(code, playerId).Contains(Context.ConnectionId))
             throw new HubException("Join the room on this connection before performing actions.");
