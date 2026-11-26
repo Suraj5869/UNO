@@ -15,7 +15,7 @@ public sealed class UnoGameRoom
         int maximumPlayers = UnoGameFactory.MaximumPlayers,
         UnoRuleSet ruleSet = UnoRuleSet.Official)
     {
-        if (string.IsNullOrWhiteSpace(creatorDisplayName))
+        if (string.IsNullOrWhiteSpace(creatorDisplayName) || creatorDisplayName.Trim().Length > 24)
         {
             throw new ArgumentException(
                 "Creator display name cannot be empty.",
@@ -193,7 +193,7 @@ public sealed class UnoGameRoom
 
     private UnoRoomPlayer AddPlayer(string displayName, bool isCreator)
     {
-        if (string.IsNullOrWhiteSpace(displayName))
+        if (string.IsNullOrWhiteSpace(displayName) || displayName.Trim().Length > 24)
         {
             throw new ArgumentException(
                 "Player display name cannot be empty.",
