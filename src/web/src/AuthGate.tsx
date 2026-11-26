@@ -37,6 +37,11 @@ function save(s: Omit<Session, 'expiresAt'>): Session {
   publishSession(value); return value;
 }
 let rotating: Promise<Session> | null = null;
+let restoring: Promise<Session> | null = null;
+function restoreSession(): Promise<Session> {
+  if (!restoring) restoring = cookieLock(() => request<Session>('refresh', {})).finally(() => { restoring = null; });
+  return restoring;
+}
 function rotate(s: Session): Promise<Session> {
   const latest = read();
   if (!latest || latest.player.userId !== s.player.userId) return Promise.reject(new Error('Session changed.'));
@@ -108,7 +113,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     let active = true;
     (async () => {
       try {
-        const restored = await cookieLock(() => request<Session>('refresh', {}));
+        const restored = await restoreSession();
         if (!active) return;
         save(restored);
         const player = restored.player;
