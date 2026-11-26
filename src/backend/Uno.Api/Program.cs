@@ -51,7 +51,7 @@ public static class UnoApi
         // Room state is currently process-local. Use a persistent shared store before
         // scaling the API to multiple instances.
         builder.Services.AddSingleton<RoomStore>();
-        builder.Services.AddSignalR();
+        builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 16 * 1024; options.MaximumParallelInvocationsPerClient = 1; options.EnableDetailedErrors = false; });
         builder.Services.AddSingleton<RoomRealtimePublisher>();
         builder.Services.AddHostedService<RuntimeRecoveryService>();
         builder.Services.AddHostedService<UnoTurnTimeoutService>();
@@ -99,6 +99,7 @@ public static class UnoApi
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = 429;
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext,string>(context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 180, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -118,6 +119,24 @@ public static class UnoApi
         app.UseHttpsRedirection();
         app.UseCors("Frontend");
         app.UseAuthentication();
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["X-Frame-Options"] = "DENY";
+            context.Response.Headers["Referrer-Policy"] = "no-referrer";
+            context.Response.Headers["Cache-Control"] = "no-store";
+            if (context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && context.User.Identity?.IsAuthenticated != true)
+            {
+                context.Response.StatusCode = 401;
+                return;
+            }
+            if (context.WebSockets.IsWebSocketRequest && context.Request.Headers.TryGetValue("Origin", out var origin) && !allowedOrigins.Contains(origin.ToString(), StringComparer.Ordinal))
+            {
+                context.Response.StatusCode = 403;
+                return;
+            }
+            await next();
+        });
         app.UseAuthorization();
         app.UseRateLimiter();
 
