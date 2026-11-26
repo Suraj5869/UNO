@@ -14,6 +14,7 @@ public sealed record RegisterRequest([Required, EmailAddress, MaxLength(254)] st
     [Required, RegularExpression("^[A-Za-z0-9_]{3,24}$")] string Username,
     [Required, StringLength(24, MinimumLength = 1)] string DisplayName,
     [Required, StringLength(128, MinimumLength = 8)] string Password);
+public sealed record ResendVerificationRequest([Required, EmailAddress, MaxLength(254)] string Email);
 public sealed record VerifyEmailRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string Token);
 public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, [Required, MaxLength(128)] string Password);
 public sealed record RefreshRequest([RegularExpression("^[A-Fa-f0-9]{64}$")] string? RefreshToken);
@@ -72,7 +73,9 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
             await connection.ExecuteAsync(new CommandDefinition("insert into uno.email_verification_tokens(user_id,token_hash,expires_at) values (@Id,@Hash,now()+interval '30 minutes')",new { Id=id, Hash=JwtSettings.Hash(token) },tx,cancellationToken:ct));
             await tx.CommitAsync(ct);
-            await SendVerification(email, token, ct);
+            try { await SendVerification(email, token, ct); }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+            { services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed; account can request a resend."); }
             return StatusCode(202, new { message = "Check your email to verify your account." });
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -95,6 +98,30 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         message.Content = System.Net.Http.Json.JsonContent.Create(new { sender = new { email = sender }, to = new[] { new { email } }, subject = "Verify your UNO account", textContent = "Verify your email within 30 minutes: " + frontend!.TrimEnd('/') + "/#verify=" + token });
         using var result = await client.SendAsync(message, ct);
         result.EnsureSuccessStatusCode();
+    }
+
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification(ResendVerificationRequest request, CancellationToken ct)
+    {
+        if (Source is not {} source) return StatusCode(503);
+        var email = request.Email.Trim().ToLowerInvariant();
+        var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        await using var db = await source.OpenConnectionAsync(ct);
+        var changed = await db.ExecuteAsync(new CommandDefinition("""
+            insert into uno.email_verification_tokens(user_id,token_hash,expires_at)
+            select id,@Hash,now()+interval '30 minutes' from uno.users
+            where lower(email)=@Email and email_verified_at is null
+            on conflict(user_id) do update set token_hash=excluded.token_hash,
+            expires_at=excluded.expires_at,created_at=now()
+            where uno.email_verification_tokens.created_at < now()-interval '2 minutes'
+            """,new { Email=email, Hash=JwtSettings.Hash(token) },cancellationToken:ct));
+        if (changed == 1)
+        {
+            try { await SendVerification(email,token,ct); }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+            { services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed."); }
+        }
+        return Accepted(new { message = "If an eligible account exists, a verification email will be sent." });
     }
 
     [HttpPost("verify-email")]
