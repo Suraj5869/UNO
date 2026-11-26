@@ -3,23 +3,28 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
 export interface Profile { userId: string; publicPlayerId: string; email: string; username: string; displayName: string; avatarKey: string; cardBackKey?: string; tableThemeKey?: string; level: number; totalXp: number; matchesPlayed: number; wins: number }
-interface Session { accessToken: string; refreshToken: string; expiresIn: number; player: Profile; expiresAt: number }
+interface Session { accessToken: string; expiresIn: number; player: Profile; expiresAt: number }
 const KEY = 'uno-account-session';
-function read(): Session | null { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } }
+let memorySession: Session | null = null;
+sessionStorage.removeItem(KEY);
+function read(): Session | null { return memorySession; }
+function cookieLock<T>(action: () => Promise<T>): Promise<T> {
+  return navigator.locks ? navigator.locks.request('uno-auth-cookie', action) : action();
+}
 class ApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }
 }
 const invalidSession = (error: unknown) => error instanceof ApiError && error.status === 401;
 const SESSION_EVENT = 'uno-account-session-change';
 function publishSession(value: Session | null) {
-  if (value) sessionStorage.setItem(KEY, JSON.stringify(value));
-  else {
+  memorySession = value;
+  if (!value) {
     for (const key of [KEY, 'uno-room-access', 'uno-quick-match']) sessionStorage.removeItem(key);
   }
   window.dispatchEvent(new Event(SESSION_EVENT));
 }
 async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
-  const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'include', headers: { 'X-Uno-Browser': '1', 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
@@ -27,20 +32,21 @@ async function request<T>(path: string, body?: unknown, token?: string, method?:
   return response.status === 204 ? undefined as T : response.json();
 }
 function save(s: Omit<Session, 'expiresAt'>): Session {
-  const value = { ...s, expiresAt: Date.now() + s.expiresIn * 1000 };
+  const { accessToken, expiresIn, player } = s;
+  const value = { accessToken, expiresIn, player, expiresAt: Date.now() + s.expiresIn * 1000 };
   publishSession(value); return value;
 }
 let rotating: Promise<Session> | null = null;
 function rotate(s: Session): Promise<Session> {
   const latest = read();
   if (!latest || latest.player.userId !== s.player.userId) return Promise.reject(new Error('Session changed.'));
-  if (latest.refreshToken !== s.refreshToken) return Promise.resolve(latest);
+  if (latest.accessToken !== s.accessToken) return Promise.resolve(latest);
   if (!rotating) {
-    rotating = request<Session>('refresh', { refreshToken: s.refreshToken }).then(next => {
-      if (read()?.refreshToken !== s.refreshToken) throw new Error('Session changed.');
+    rotating = cookieLock(() => request<Session>('refresh', {})).then(next => {
+      if (read()?.accessToken !== s.accessToken) throw new Error('Session changed.');
       return save(next);
     }).catch(error => {
-      if (invalidSession(error) && read()?.refreshToken === s.refreshToken) publishSession(null);
+      if (invalidSession(error) && read()?.accessToken === s.accessToken) publishSession(null);
       throw error;
     }).finally(() => { rotating = null; });
   }
@@ -60,7 +66,7 @@ export async function accountRequest<T>(path: string, body?: unknown, method?: s
 export default function AuthGate({ children }: { children: (player: Profile | null, logout: () => Promise<void>, updateProfile: (profile: Profile) => void) => ReactNode }) {
   const [session, setSession] = useState<Session | null>(read);
   const [guest, setGuest] = useState(() => sessionStorage.getItem('uno-guest') === 'true');
-  const [loading, setLoading] = useState(() => !!read());
+  const [loading, setLoading] = useState(() => sessionStorage.getItem('uno-guest') !== 'true');
   const [register, setRegister] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [username, setUsername] = useState('');
@@ -76,18 +82,21 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     return () => window.removeEventListener(SESSION_EVENT, sync);
   }, []);
   useEffect(() => {
-    const saved = read();
-    if (!saved) return;
+    if (sessionStorage.getItem('uno-guest') === 'true') return;
+    if (read()) { setLoading(false); return; }
     let active = true;
     (async () => {
       try {
-        const player = await accountRequest<Profile>('me');
+        const restored = await cookieLock(() => request<Session>('refresh', {}));
+        if (!active) return;
+        save(restored);
+        const player = restored.player;
         const current = read();
         if (active && current && current.player.userId === player.userId) {
           publishSession({ ...current, player }); setGuest(false);
         }
       } catch {
-        if (active && !read()) setError('Session expired. Please sign in again.');
+        if (active && !read()) publishSession(null);
       } finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
@@ -111,15 +120,15 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     return () => { active = false; window.clearTimeout(timer); };
   }, [session, loading]);
   const logout = async () => {
-    try { const current = rotating ? await rotating : read(); if (current) await request('logout', { refreshToken: current.refreshToken }); }
-    finally { for (const key of [KEY, 'uno-guest', 'uno-room-access', 'uno-quick-match']) sessionStorage.removeItem(key); setSession(null); setGuest(false); setPassword(''); }
+    try { const current = rotating ? await rotating : read(); if (current) await cookieLock(() => request('logout', {})); }
+    finally { publishSession(null); for (const key of [KEY, 'uno-guest', 'uno-room-access', 'uno-quick-match']) sessionStorage.removeItem(key); setSession(null); setGuest(false); setPassword(''); }
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setError('');
     if (register && password !== confirm) { setError('Passwords do not match.'); return; }
     setBusy(true);
     try {
-      const result = await request<Session>(register ? 'register' : 'login', register ? { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password } : { identifier: identifier.trim(), password });
+      const result = await cookieLock(() => request<Session>(register ? 'register' : 'login', register ? { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password } : { identifier: identifier.trim(), password }));
       sessionStorage.removeItem('uno-guest'); sessionStorage.removeItem('uno-room-access'); sessionStorage.removeItem('uno-quick-match');
       setSession(save(result)); setGuest(false); setPassword(''); setConfirm('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in.'); }
