@@ -67,6 +67,21 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     {
         lock (_sync) { if (!_participation.TryGetValue(matchId,out var seats)) _participation[matchId]=seats=new(); seats.Add(seat); }
     }
+    // Revoke all room seats owned by an account when its session is revoked.
+    // Conservative account-wide revocation until seats carry individual session IDs.
+    public void RevokeAccountRooms(Guid accountId)
+    {
+        lock (_sync)
+        {
+            foreach (var seat in _accounts.Where(p => p.Value == accountId).Select(p => p.Key).ToArray())
+            {
+                if (_presence.TryGetValue(seat, out var presence))
+                {
+                    Leave(presence.Code, presence.Token);
+                }
+            }
+        }
+    }
     public void Connected(string code,string token,string connection)
     {
         lock (_sync) { var seat=AuthorizeParticipant(code,token); _presence[seat]=(code,token,connection,null); }
@@ -339,7 +354,10 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                     .ToArray();
                 foreach (var revokedToken in revokedTokens)
                 {
+                    var revokedSeat = _tokensByRoomCode[room.Code][revokedToken];
                     _tokensByRoomCode[room.Code].Remove(revokedToken);
+                    _accounts.Remove(revokedSeat);
+                    _presence.Remove(revokedSeat);
                 }
             }
             return game;
