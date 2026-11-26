@@ -84,6 +84,8 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source || Jwt is not {} jwt) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         var identifier = request.Identifier.Trim().ToLowerInvariant();
+        // Partition identifier throttling by source to avoid global victim lockout.
+        var attemptKey = JwtSettings.Hash(identifier + "\n" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"));
         // Bound storage for expired login-attempt counters.
         await connection.ExecuteAsync(new CommandDefinition("""
             delete from uno.login_attempts where identifier_hash in
@@ -95,7 +97,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             attempts=case when uno.login_attempts.window_start<now()-interval '15 minutes' then 1 else least(uno.login_attempts.attempts+1,1000) end,
             window_start=case when uno.login_attempts.window_start<now()-interval '15 minutes' then now() else uno.login_attempts.window_start end
             returning attempts
-            """,new { Hash=JwtSettings.Hash(identifier) },cancellationToken:ct));
+            """,new { Hash=attemptKey },cancellationToken:ct));
         if(attempts>5) return StatusCode(429,new { message="Too many login attempts. Try again later." });
         var account = await connection.QuerySingleOrDefaultAsync<AccountRow>(new CommandDefinition("""
             select u.id, u.password_hash as PasswordHash from uno.users u
@@ -110,7 +112,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         }
         var verification = hasher.VerifyHashedPassword(new AccountIdentity(account.Id), account.PasswordHash, request.Password);
         if (verification == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials." });
-        await connection.ExecuteAsync(new CommandDefinition("delete from uno.login_attempts where identifier_hash=@Hash",new { Hash=JwtSettings.Hash(identifier) },cancellationToken:ct));
+        await connection.ExecuteAsync(new CommandDefinition("delete from uno.login_attempts where identifier_hash=@Hash",new { Hash=attemptKey },cancellationToken:ct));
         await using var tx = await connection.BeginTransactionAsync(ct);
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
