@@ -163,9 +163,9 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
 
   const roomCode = access?.room.code;
   const refresh = useCallback(async () => {
-    if (!roomCode) return;
+    if (!roomCode || !access?.accessToken) return;
     try {
-      const value = await api<Room>('/api/rooms/' + encodeURIComponent(roomCode));
+      const value = await api<Room>('/api/rooms/' + encodeURIComponent(roomCode), { headers: { 'X-Room-Token': access.accessToken } });
       if (!acceptRoom(value)) return;
       setAccess(old => {
         if (!old) return old;
@@ -174,7 +174,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
         return next;
       });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh room.'); }
-  }, [roomCode, api, acceptRoom]);
+  }, [roomCode, access?.accessToken, api, acceptRoom]);
 
   useEffect(() => {
     if (!access) return;
