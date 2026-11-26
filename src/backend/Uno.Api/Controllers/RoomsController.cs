@@ -5,6 +5,7 @@ using Uno.GameEngine;
 
 namespace Uno.Api.Controllers;
 
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("rooms")]
 [ApiController]
 [Route("api/rooms")]
 public sealed class RoomsController(RoomStore roomStore, RoomRealtimePublisher publisher) : ControllerBase
