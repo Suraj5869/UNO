@@ -11,10 +11,10 @@ public sealed class JwtSettings(string key)
     public const string Issuer = "Uno.Api";
     public const string Audience = "Uno.Players";
     public SymmetricSecurityKey SigningKey { get; } = new(Encoding.UTF8.GetBytes(key));
-    public string Issue(Guid userId)
+    public string Issue(Guid userId, Guid sessionId)
     {
         var token = new JwtSecurityToken(Issuer, Audience,
-            new[] { new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) },
+            new[] { new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), new Claim("sid", sessionId.ToString()), new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) },
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: new SigningCredentials(SigningKey, SecurityAlgorithms.HmacSha256));
         return new JwtSecurityTokenHandler().WriteToken(token);
