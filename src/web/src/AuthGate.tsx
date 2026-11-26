@@ -52,6 +52,12 @@ function rotate(s: Session): Promise<Session> {
   }
   return rotating;
 }
+export async function accountAccessToken(): Promise<string> {
+  let current = read();
+  if (!current) return '';
+  if (current.expiresAt <= Date.now() + 60000) current = await rotate(current);
+  return current.accessToken;
+}
 export function hasAccountSession() { return !!read(); }
 export async function accountRequest<T>(path: string, body?: unknown, method?: string): Promise<T> {
   let current = read(); if (!current) throw new Error('Please sign in again.');
