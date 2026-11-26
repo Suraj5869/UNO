@@ -8,7 +8,7 @@ async function openGuest(page: Page, name: string) {
 
 test('private room forms are nested under Play with Friends', async ({ page }) => {
   await openGuest(page, 'Private Host');
-  await expect(page.getByRole('button', { name: /Play Match/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ranked/ })).toBeVisible();
   await expect(page.getByLabel('Room code')).toHaveCount(0);
   await expect(page.locator('input[name="create-rules"]')).toHaveCount(0);
   await page.getByRole('button', { name: /Play with Friends/ }).click();
@@ -20,7 +20,7 @@ test('private room forms are nested under Play with Friends', async ({ page }) =
   await page.getByRole('button', { name: /Back to friends/ }).click();
   await expect(page.getByLabel('Room code')).toBeVisible();
   await page.getByRole('button', { name: /Back to home/ }).click();
-  await expect(page.getByRole('button', { name: /Play Match/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ranked/ })).toBeVisible();
 });
 
 test('two random players enter the same automatically started game', async ({ page, browser }) => {
@@ -28,10 +28,12 @@ test('two random players enter the same automatically started game', async ({ pa
   try {
     const opponent = await other.newPage();
     await openGuest(page, 'Quick One');
-    await page.getByRole('button', { name: /Play Match/ }).click();
+    await page.getByRole('button', { name: /Ranked/ }).click();
+    await page.getByRole('button', { name: /Find match/ }).click();
     await expect(page.getByText('Finding a match…')).toBeVisible();
     await openGuest(opponent, 'Quick Two');
-    await opponent.getByRole('button', { name: /Play Match/ }).click();
+    await opponent.getByRole('button', { name: /Ranked/ }).click();
+    await opponent.getByRole('button', { name: /Find match/ }).click();
     for (const player of [page, opponent]) {
       await expect(player.locator('.table-felt')).toBeVisible();
       await expect(player.locator('.hand-card')).toHaveCount(7);
