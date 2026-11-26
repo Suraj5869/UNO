@@ -84,6 +84,11 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (Source is not {} source || Jwt is not {} jwt) return StatusCode(503);
         await using var connection = await source.OpenConnectionAsync(ct);
         var identifier = request.Identifier.Trim().ToLowerInvariant();
+        // Bound storage for expired login-attempt counters.
+        await connection.ExecuteAsync(new CommandDefinition("""
+            delete from uno.login_attempts where identifier_hash in
+            (select identifier_hash from uno.login_attempts where window_start<now()-interval '1 day' limit 100)
+            """,cancellationToken:ct));
         var attempts = await connection.ExecuteScalarAsync<int>(new CommandDefinition("""
             insert into uno.login_attempts(identifier_hash,attempts,window_start) values(@Hash,1,now())
             on conflict(identifier_hash) do update set
