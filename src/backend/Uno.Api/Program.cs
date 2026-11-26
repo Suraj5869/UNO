@@ -77,6 +77,11 @@ public static class UnoApi
                 options.MapInboundClaims = false;
                 options.Events = new JwtBearerEvents
                 {
+                    OnMessageReceived = context =>
+                    {
+                        if (context.HttpContext.Request.Path.StartsWithSegments("/hubs/uno-room") && context.Request.Query.TryGetValue("access_token", out var token)) context.Token = token.ToString();
+                        return Task.CompletedTask;
+                    },
                     OnTokenValidated = async context =>
                     {
                         if (!Guid.TryParse(context.Principal?.FindFirst("sid")?.Value,out var sessionId) ||
@@ -190,7 +195,7 @@ public static class UnoApi
             }
         });
         app.MapControllers();
-        app.MapHub<UnoRoomHub>("/hubs/uno-room");
+        app.MapHub<UnoRoomHub>("/hubs/uno-room", options => options.CloseOnAuthenticationExpiration = true);
 
         return app;
     }
