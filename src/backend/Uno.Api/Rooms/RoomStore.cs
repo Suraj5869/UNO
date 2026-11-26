@@ -27,10 +27,10 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<Guid,HashSet<Guid>> _participation = new();
     private readonly Dictionary<Guid,(string Code,string Token,string? Connection,DateTimeOffset? Expires)> _presence = new();
 
-    public sealed record RuntimeCheckpoint(UnoGameRoom.Checkpoint[] Rooms,Dictionary<string,Dictionary<string,Guid>> Tokens,Dictionary<string,Dictionary<Guid,string>> Rematches,Dictionary<Guid,BotDifficulty> Bots,Dictionary<Guid,int> Practice,Guid[] Ranked,Dictionary<Guid,List<ResultPlayer>> Departed,Dictionary<Guid,HashSet<Guid>> Participation,Dictionary<Guid,Guid> Accounts,CompletedMatch[] Pending,Guid[] Captured,string[] Queues);
+    public sealed record RuntimeCheckpoint(UnoGameRoom.Checkpoint[] Rooms,Dictionary<string,Dictionary<string,Guid>> Tokens,Dictionary<string,Dictionary<Guid,string>> Rematches,Dictionary<Guid,BotDifficulty> Bots,Dictionary<Guid,int> Practice,Guid[] Ranked,Dictionary<Guid,List<ResultPlayer>> Departed,Dictionary<Guid,HashSet<Guid>> Participation,Dictionary<Guid,Guid> Accounts,CompletedMatch[] Pending,Guid[] Captured,string[] Queues, Dictionary<Guid,Guid>? SeatSessions = null);
     public string ExportRuntime()
     {
-        lock (_sync) return System.Text.Json.JsonSerializer.Serialize(new RuntimeCheckpoint(_roomsByCode.Values.Select(r=>r.ExportCheckpoint()).ToArray(),_tokensByRoomCode,_rematchCandidatesByRoomCode,_bots,_practiceMatches,_rankedMatches.ToArray(),_departed,_participation,_accounts,_pendingResults.Values.ToArray(),_captured.ToArray(),_matchmakingRooms.ToArray()));
+        lock (_sync) return System.Text.Json.JsonSerializer.Serialize(new RuntimeCheckpoint(_roomsByCode.Values.Select(r=>r.ExportCheckpoint()).ToArray(),_tokensByRoomCode,_rematchCandidatesByRoomCode,_bots,_practiceMatches,_rankedMatches.ToArray(),_departed,_participation,_accounts,_pendingResults.Values.ToArray(),_captured.ToArray(),_matchmakingRooms.ToArray(),_seatSessions));
     }
     public void RestoreRuntime(string json)
     {
@@ -46,6 +46,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             foreach(var p in c.Departed) _departed.Add(p.Key,p.Value);
             foreach(var p in c.Participation) _participation.Add(p.Key,p.Value);
             foreach(var p in c.Accounts) _accounts.Add(p.Key,p.Value);
+            if (c.SeatSessions is not null) foreach(var p in c.SeatSessions) _seatSessions.Add(p.Key,p.Value);
             foreach(var p in c.Pending) _pendingResults.Add(p.Id,p);
             _captured.UnionWith(c.Captured);
             _matchmakingRooms.UnionWith(c.Queues);
@@ -56,8 +57,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         foreach(var room in _roomsByCode.Values.Where(r=>r.Players.All(p=>_bots.ContainsKey(p.Id)) || _tokensByRoomCode[r.Code].Count==0).ToArray())
         {
-            foreach(var seat in room.Players) { _bots.Remove(seat.Id); _accounts.Remove(seat.Id); _presence.Remove(seat.Id); }
-            foreach(var seat in _tokensByRoomCode[room.Code].Values) { _accounts.Remove(seat); _presence.Remove(seat); }
+            foreach(var seat in room.Players) { _bots.Remove(seat.Id); _accounts.Remove(seat.Id); _seatSessions.Remove(seat.Id); _presence.Remove(seat.Id); }
+            foreach(var seat in _tokensByRoomCode[room.Code].Values) { _accounts.Remove(seat); _seatSessions.Remove(seat); _presence.Remove(seat); }
             if(room.Game is {} game) { _captured.Remove(game.MatchId); _rankedMatches.Remove(game.MatchId); _practiceMatches.Remove(game.MatchId); _departed.Remove(game.MatchId); _participation.Remove(game.MatchId); }
             _roomsByCode.Remove(room.Code); _tokensByRoomCode.Remove(room.Code); _rematchCandidatesByRoomCode.Remove(room.Code); _matchmakingRooms.Remove(room.Code);
         }
@@ -67,8 +68,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     {
         lock (_sync) { if (!_participation.TryGetValue(matchId,out var seats)) _participation[matchId]=seats=new(); seats.Add(seat); }
     }
-    // Revoke all room seats owned by an account when its session is revoked.
-    // Conservative account-wide revocation until seats carry individual session IDs.
+    // Room seats are bound to the account session that created them.
     private readonly Dictionary<Guid, Guid> _seatSessions = new();
     public void BindSession(Guid seat, Guid? sessionId)
     {
@@ -229,10 +229,11 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         }
     }
 
-    public bool CanInvite(string code,string token,Guid accountId)
+    public bool CanInvite(string code,string token,Guid accountId, Guid? sessionId = null)
     {
         lock (_sync)
         {
+            RequireSession(code, token, accountId, sessionId);
             var room=GetByCodeUnsafe(code);
             var seat=AuthorizeParticipant(code,token);
             return _accounts.GetValueOrDefault(seat)==accountId && room.Status==UnoRoomStatus.Waiting
