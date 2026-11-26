@@ -14,6 +14,7 @@ public sealed record RegisterRequest([Required, EmailAddress, MaxLength(254)] st
     [Required, RegularExpression("^[A-Za-z0-9_]{3,24}$")] string Username,
     [Required, StringLength(24, MinimumLength = 1)] string DisplayName,
     [Required, StringLength(128, MinimumLength = 8)] string Password);
+public sealed record VerifyEmailRequest([Required, RegularExpression("^[A-Fa-f0-9]{64}$")] string Token);
 public sealed record LoginRequest([Required, MaxLength(254)] string Identifier, [Required, MaxLength(128)] string Password);
 public sealed record RefreshRequest([RegularExpression("^[A-Fa-f0-9]{64}$")] string? RefreshToken);
 public sealed record ProfileUpdateRequest([Required, StringLength(24, MinimumLength = 1)] string DisplayName);
@@ -21,7 +22,7 @@ public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey)
 public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped, int RequiredLevel, int RequiredSeasonXp);
 public sealed record AccountIdentity(Guid Id);
 public sealed record SessionRow(Guid Id, Guid UserId);
-public sealed record AccountRow(Guid Id, string PasswordHash);
+public sealed record AccountRow(Guid Id, string PasswordHash, bool EmailVerified);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
     string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins, string CardBackKey, string TableThemeKey);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, int ExpiresIn, PlayerProfile Player);
@@ -68,14 +69,46 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
                 insert into uno.player_loadouts(user_id,category,item_id)
                   select @Id,category,id from uno.cosmetic_items where item_key in ('avatar_default','card_back_classic','table_theme_default');
                 """, new { Id=id, Email=email, Hash=hash, Username=username, Display=display }, tx, cancellationToken:ct));
-            var response = await Issue(connection, tx, jwt, id, ct);
+            var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            await connection.ExecuteAsync(new CommandDefinition("insert into uno.email_verification_tokens(user_id,token_hash,expires_at) values (@Id,@Hash,now()+interval '30 minutes')",new { Id=id, Hash=JwtSettings.Hash(token) },tx,cancellationToken:ct));
             await tx.CommitAsync(ct);
-            return StatusCode(201, BrowserResponse(response));
+            await SendVerification(email, token, ct);
+            return StatusCode(202, new { message = "Check your email to verify your account." });
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             return Conflict(new { message = "Unable to create an account with these details." });
         }
+    }
+
+    private async Task SendVerification(string email, string token, CancellationToken ct)
+    {
+        var config = services.GetRequiredService<IConfiguration>();
+        var key = config["Email:BrevoApiKey"];
+        var sender = config["Email:Sender"];
+        var frontend = config["Email:FrontendUrl"];
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(sender) || !Uri.TryCreate(frontend, UriKind.Absolute, out var uri) || uri.Scheme != "https")
+            throw new InvalidOperationException("Email delivery is not configured.");
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        using var message = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
+        message.Headers.Add("api-key", key);
+        message.Content = System.Net.Http.Json.JsonContent.Create(new { sender = new { email = sender }, to = new[] { new { email } }, subject = "Verify your UNO account", textContent = "Verify your email within 30 minutes: " + frontend!.TrimEnd('/') + "/#verify=" + token });
+        using var result = await client.SendAsync(message, ct);
+        result.EnsureSuccessStatusCode();
+    }
+
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken ct)
+    {
+        if (Source is not {} source) return StatusCode(503);
+        await using var db = await source.OpenConnectionAsync(ct);
+        var changed = await db.ExecuteAsync(new CommandDefinition("""
+            with consumed as (
+                delete from uno.email_verification_tokens where token_hash=@Hash and expires_at>now() returning user_id
+            )
+            update uno.users set email_verified_at=now() where id in (select user_id from consumed)
+            """,new { Hash=JwtSettings.Hash(request.Token) },cancellationToken:ct));
+        return changed == 1 ? Ok(new { message = "Email verified. Sign in to continue." }) : BadRequest(new { message = "Invalid or expired verification link." });
     }
 
     [HttpPost("login")]
@@ -100,7 +133,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             """,new { Hash=attemptKey },cancellationToken:ct));
         if(attempts>5) return StatusCode(429,new { message="Too many login attempts. Try again later." });
         var account = await connection.QuerySingleOrDefaultAsync<AccountRow>(new CommandDefinition("""
-            select u.id, u.password_hash as PasswordHash from uno.users u
+            select u.id, u.password_hash as PasswordHash, u.email_verified_at is not null as EmailVerified from uno.users u
             join uno.player_profiles p on p.user_id=u.id
             where lower(trim(u.email))=@Identifier or lower(p.username)=@Identifier
             """, new { Identifier=identifier }, cancellationToken:ct));
@@ -117,6 +150,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
                 new { account.Id, Hash=hasher.HashPassword(new AccountIdentity(account.Id),request.Password) }, tx,cancellationToken:ct));
+        if (!account.EmailVerified) return StatusCode(403, new { message = "Verify your email before signing in." });
         var response = await Issue(connection, tx, jwt, account.Id, ct);
         await tx.CommitAsync(ct);
         return Ok(BrowserResponse(response));
