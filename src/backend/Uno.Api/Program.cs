@@ -21,6 +21,9 @@ public static class UnoApi
 
         // Add services to the container.
         builder.Services.AddControllers().AddApplicationPart(typeof(Uno.Api.Controllers.RoomsController).Assembly);
+        builder.Services.AddHttpClient("verification", client => client.Timeout = TimeSpan.FromSeconds(15));
+        if (builder.Environment.IsProduction())
+            Uno.Api.Authentication.ProductionConfiguration.Validate(builder.Configuration);
         builder.Services.AddOpenApi();
         builder.Services.AddSwaggerGen();
 
@@ -148,6 +151,7 @@ public static class UnoApi
             app.UseSwaggerUI();
         }
 
+        if (app.Environment.IsProduction()) app.UseHsts();
         app.UseHttpsRedirection();
         app.UseWebSockets();
         app.UseCors("Frontend");
