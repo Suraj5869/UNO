@@ -12,9 +12,14 @@ test('cookie restoration keeps account credentials out of browser storage', asyn
     return route.fulfill({ json: session });
   });
   await page.route('**/api/auth/me', route => route.fulfill({ status: 503 }));
+  // The dashboard polls social data with the mocked access token. Keep
+  // this restoration test isolated from real backend authentication.
+  await page.route('**/api/social', route => route.fulfill({ json: { friends: [], invitations: [] } }));
+  const socialResponse = page.waitForResponse(response => response.url().endsWith('/api/social') && response.status() === 200);
   await page.goto('/');
-  await expect.poll(() => refreshes).toBe(1);
   await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
+  await socialResponse;
+  expect(refreshes).toBe(1);
   expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
 });
 
@@ -30,6 +35,7 @@ test('unauthorized account request rotates once and retries', async ({ page }) =
   let refreshes = 0;
   await page.route('**/api/auth/refresh', route => route.fulfill({ json: { ...session, accessToken: ++refreshes === 1 ? 'old-token' : 'new-token' } }));
   await page.route('**/api/auth/me', route => route.fulfill({ json: player }));
+  await page.route('**/api/social', route => route.fulfill({ json: { friends: [], invitations: [] } }));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
   let retried = false;
