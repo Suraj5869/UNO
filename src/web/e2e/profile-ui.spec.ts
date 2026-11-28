@@ -9,6 +9,7 @@ const items = [
 
 test('profile popup, collection retry, tabs and name updates remain consistent', async ({ page }, testInfo) => {
   await page.route('**/api/auth/refresh', route => route.fulfill({ json: { accessToken: 'ui-token', expiresIn: 3600, player } }));
+  await page.route('**/api/progression', route => route.fulfill({ json: { level: 1, totalXp: 0, nextLevelXp: 100, season: 'Test', seasonalXp: 0, seasonalLevel: 1, seasonEndsAt: '2030-01-01', matchesPlayed: 0, wins: 0, losses: 0, winRate: 0, modeStatistics: [] } }));
   let current = { ...player };
   await page.route('**/api/auth/me', async route => {
     if (route.request().method() === 'PUT') current = { ...current, ...route.request().postDataJSON() };
@@ -31,6 +32,7 @@ test('profile popup, collection retry, tabs and name updates remain consistent',
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.collection-portrait')).toHaveText('T');
+  await dialog.getByRole('button', { name: 'Collections', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('Collection API not found');
   await dialog.getByRole('button', { name: 'Retry' }).click();
   await expect(dialog.getByText('Default avatar')).toBeVisible();
