@@ -90,8 +90,25 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         var key = config["Email:BrevoApiKey"];
         var sender = config["Email:Sender"];
         var frontend = config["Email:FrontendUrl"];
-        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(sender) || !Uri.TryCreate(frontend, UriKind.Absolute, out var uri) || uri.Scheme != "https")
-            throw new InvalidOperationException("Email delivery is not configured.");
+        var environment = services.GetRequiredService<IWebHostEnvironment>();
+
+        if (string.IsNullOrWhiteSpace(key))
+            throw new InvalidOperationException("Brevo API key is missing.");
+
+        if (string.IsNullOrWhiteSpace(sender))
+            throw new InvalidOperationException("Email sender is missing.");
+
+        if (!Uri.TryCreate(frontend, UriKind.Absolute, out var uri))
+            throw new InvalidOperationException("Invalid frontend URL.");
+
+        var isAllowedLocalUrl =
+            environment.IsDevelopment() &&
+            uri.IsLoopback &&
+            uri.Scheme == Uri.UriSchemeHttp;
+
+        if (uri.Scheme != Uri.UriSchemeHttps && !isAllowedLocalUrl)
+            throw new InvalidOperationException(
+                "Frontend URL must use HTTPS.");
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         using var message = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
         message.Headers.Add("api-key", key);
@@ -119,7 +136,16 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         {
             try { await SendVerification(email,token,ct); }
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
-            { services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed."); }
+            {
+                services.GetRequiredService<ILogger<AuthController>>()
+    .LogWarning(
+        "Verification email delivery failed. Type: {ErrorType}, Reason: {Reason}, HTTP status: {StatusCode}",
+        ex.GetType().Name,
+        ex is InvalidOperationException
+            ? ex.Message
+            : "Email provider request failed.",
+        (ex as HttpRequestException)?.StatusCode);
+            }
         }
         return Accepted(new { message = "If an eligible account exists, a verification email will be sent." });
     }
