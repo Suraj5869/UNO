@@ -15,11 +15,11 @@ test('public queues isolate settings and start only at requested capacity', asyn
       await p.getByRole('button',{name:/Find match/}).click();
     }
     await search(0,'3','0');
-    await expect(pages[0].getByText('1 of 3 players found')).toBeVisible();
+    await expect(pages[0].getByText(/1 of 3 players found/)).toBeVisible();
     await search(1,'3','1');
-    await expect(pages[1].getByText('1 of 3 players found')).toBeVisible();
+    await expect(pages[1].getByText(/1 of 3 players found/)).toBeVisible();
     await search(2,'3','0');
-    await expect(pages[0].getByText('2 of 3 players found')).toBeVisible();
+    await expect(pages[0].getByText(/2 of 3 players found/)).toBeVisible();
     await search(3,'3','0');
     for(const i of [0,2,3]) await expect(pages[i].locator('.table-felt')).toBeVisible();
     await pages[1].getByRole('button',{name:'Cancel search'}).click();
