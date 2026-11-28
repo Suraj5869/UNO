@@ -37,3 +37,34 @@ test('signup opens a dedicated verification screen', async ({ page }) => {
   await page.getByRole('button', { name: 'Back to Sign In' }).click();
   await expect(page.getByRole('button', { name: /send verification email/i })).toHaveCount(0);
 });
+
+for (const delivery of ['sent', 'failed', 'cooldown'] as const) {
+  test('unverified login handles delivery: ' + delivery, async ({ page }) => {
+    await page.route('**/api/auth/refresh', route => route.fulfill({ status: 204 }));
+    await page.route('**/api/auth/login', route => route.fulfill({ status: 403, json: { code: 'EMAIL_NOT_VERIFIED', email: 'player@example.com', verificationRequested: delivery === 'sent', delivery } }));
+    await page.goto('/');
+    await page.getByLabel('Email or username').fill('player');
+    await page.getByPlaceholder('Enter your password').fill('test-password');
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click();
+    await expect(page.getByText('Email not verified', { exact: true })).toBeVisible();
+    await expect(page.getByText(delivery === 'sent' ? 'Verification email sent. Check your inbox and spam folder.' : delivery === 'failed' ? 'We could not send your verification email. Please try again after the cooldown.' : 'A verification request was made recently. Please wait before trying again.')).toBeVisible();
+    await expect(page.getByRole('button', { name: /(?:Resend email|Try again) in/ })).toBeDisabled();
+  });
+}
+
+test('verification link handles expiry and successful verification', async ({ page }) => {
+  await page.route('**/api/auth/refresh', route => route.fulfill({ status: 204 }));
+  let valid = false;
+  const token = 'a'.repeat(64);
+  await page.route('**/api/auth/verify-email', route => {
+    expect(route.request().postDataJSON()).toEqual({ token });
+    return route.fulfill({ status: valid ? 200 : 400, json: { message: valid ? 'Email verified.' : 'Invalid or expired verification link.' } });
+  });
+  await page.goto('/#verify=' + token);
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Invalid or expired verification link.');
+  valid = true;
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sign In', exact: true })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+});
