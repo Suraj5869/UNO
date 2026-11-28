@@ -17,16 +17,11 @@ for (const scenario of ['pending', 'denied', 'exhausted', 'transient'] as const)
     });
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
-    await page.evaluate(async p => {
-      const load = (path: string) => import(/* @vite-ignore */ path);
-      const React = await load('/node_modules/.vite/deps/react.js');
-      const { createRoot } = await load('/node_modules/.vite/deps/react-dom_client.js');
-      const { MatchReward } = await load('/src/ProgressionPanel.tsx');
-      const host = document.createElement('div');
-      host.id = 'reward-test-root';
-      document.body.appendChild(host);
-      createRoot(host).render(React.createElement(React.StrictMode, null, React.createElement(MatchReward, { matchId: 'match-test', player: p, onUpdate: () => {} })));
-    }, player);
+    await page.evaluate(async () => {
+      const path = '/e2e/fixtures/reward-harness.tsx';
+      const { mountReward } = await import(/* @vite-ignore */ path);
+      mountReward();
+    });
     const panel = page.locator('#reward-test-root');
     if (scenario === 'denied' || scenario === 'exhausted') {
       await expect(panel).toContainText('No saved reward yet', { timeout: 22000 });
