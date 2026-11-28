@@ -122,6 +122,12 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
     {
         if (Source is not {} source) return StatusCode(503);
         var email = request.Email.Trim().ToLowerInvariant();
+        await RequestVerification(source, email, ct);
+        return Accepted(new { message = "If an eligible account exists, a verification email will be sent." });
+    }
+
+    private async Task<string> RequestVerification(NpgsqlDataSource source, string email, CancellationToken ct)
+    {
         var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         await using var db = await source.OpenConnectionAsync(ct);
         var changed = await db.ExecuteAsync(new CommandDefinition("""
@@ -132,22 +138,17 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             expires_at=excluded.expires_at,created_at=now()
             where uno.email_verification_tokens.created_at < now()-interval '2 minutes'
             """,new { Email=email, Hash=JwtSettings.Hash(token) },cancellationToken:ct));
-        if (changed == 1)
+        if (changed != 1) return "cooldown";
+        try
         {
-            try { await SendVerification(email,token,ct); }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
-            {
-                services.GetRequiredService<ILogger<AuthController>>()
-    .LogWarning(
-        "Verification email delivery failed. Type: {ErrorType}, Reason: {Reason}, HTTP status: {StatusCode}",
-        ex.GetType().Name,
-        ex is InvalidOperationException
-            ? ex.Message
-            : "Email provider request failed.",
-        (ex as HttpRequestException)?.StatusCode);
-            }
+            await SendVerification(email, token, ct);
+            return "sent";
         }
-        return Accepted(new { message = "If an eligible account exists, a verification email will be sent." });
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+        {
+            services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed. Type: {Type}, Status: {Status}", ex.GetType().Name, (ex as HttpRequestException)?.StatusCode);
+            return "failed";
+        }
     }
 
     [HttpPost("verify-email")]
@@ -199,11 +200,16 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         var verification = hasher.VerifyHashedPassword(new AccountIdentity(account.Id), account.PasswordHash, request.Password);
         if (verification == PasswordVerificationResult.Failed) return Unauthorized(new { message = "Invalid credentials." });
         await connection.ExecuteAsync(new CommandDefinition("delete from uno.login_attempts where identifier_hash=@Hash",new { Hash=attemptKey },cancellationToken:ct));
+        if (!account.EmailVerified)
+        {
+            var delivery = await RequestVerification(source, account.Email, ct);
+            return StatusCode(403, new { code = "EMAIL_NOT_VERIFIED", message = "Verify your email before signing in.", email = account.Email, verificationRequested = delivery == "sent", delivery });
+        }
         await using var tx = await connection.BeginTransactionAsync(ct);
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
                 new { account.Id, Hash=hasher.HashPassword(new AccountIdentity(account.Id),request.Password) }, tx,cancellationToken:ct));
-        if (!account.EmailVerified) return StatusCode(403, new { code = "EMAIL_NOT_VERIFIED", message = "Verify your email before signing in.", email = account.Email, verificationRequested = account.VerificationRequested });
+
         var response = await Issue(connection, tx, jwt, account.Id, ct);
         await tx.CommitAsync(ct);
         return Ok(BrowserResponse(response));
