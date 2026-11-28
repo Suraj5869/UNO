@@ -74,20 +74,23 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
     }
     await expect(connections[0].invoke('PlayCard', code, host.accessToken, initial.actionRevision, 0, 0)).rejects.toThrow();
     await expect(connections[1].invoke('DrawCard', code, guest.accessToken, initial.actionRevision)).rejects.toThrow();
+    // Pace the security probes below the real per-connection and shared rate limits.
+    const staleError = /Game state changed\. Refresh and retry\./;
     // Every gameplay endpoint must reject stale revisions before engine validation.
     for (const [method, args] of [
       ['PlayCard', [0, 0]], ['DrawCard', []], ['PassAfterDraw', []],
       ['AcceptDrawPenalty', []], ['AcceptWildDrawFour', []],
       ['ChallengeWildDrawFour', []], ['CallUno', []], ['CatchUno', [host.playerId]],
     ] as [string, unknown[]][]) {
+      await new Promise(resolve => setTimeout(resolve, 1100));
       const before = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
-      await expect(connections[1].invoke(method, code, guest.accessToken, initial.actionRevision, ...args)).rejects.toThrow();
+      await expect(connections[1].invoke(method, code, guest.accessToken, initial.actionRevision, ...args)).rejects.toThrow(staleError);
       const after = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
       expect(after.actionRevision).toBe(before.actionRevision);
     }
     const next = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
     await connections[1].invoke('DrawCard', code, guest.accessToken, next.actionRevision);
-    await expect(connections[1].invoke('DrawCard', code, guest.accessToken, next.actionRevision)).rejects.toThrow();
+    await expect(connections[1].invoke('DrawCard', code, guest.accessToken, next.actionRevision)).rejects.toThrow(staleError);
     await expect.poll(() => publicDraws.length).toBe(1);
     expect(publicDraws[0]).toMatchObject({ card: null, drawCount: 1, playerId: guest.playerId });
     await expect.poll(() => received[2].at(-1)?.players[1].cardCount).toBe(8);
