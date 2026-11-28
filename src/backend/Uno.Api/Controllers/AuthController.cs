@@ -225,6 +225,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var tx = await connection.BeginTransactionAsync(ct);
         var token = Request.Headers["X-Uno-Browser"] == "1" ? Request.Cookies["__Host-uno-refresh"] : request.RefreshToken;
+        if (token is null && Request.Headers["X-Uno-Browser"] == "1" && Request.Headers["X-Uno-Session-Probe"] == "1") return NoContent();
         if (token is null || token.Length != 64) return Unauthorized();
         var hash = JwtSettings.Hash(token);
         var session = await connection.QuerySingleOrDefaultAsync<SessionRow>(new CommandDefinition("""
