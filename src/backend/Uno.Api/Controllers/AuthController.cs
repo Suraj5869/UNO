@@ -109,7 +109,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (uri.Scheme != Uri.UriSchemeHttps && !isAllowedLocalUrl)
             throw new InvalidOperationException(
                 "Frontend URL must use HTTPS.");
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        using var client = services.GetRequiredService<IHttpClientFactory>().CreateClient("verification");
         using var message = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
         message.Headers.Add("api-key", key);
         message.Content = System.Net.Http.Json.JsonContent.Create(new { sender = new { email = sender }, to = new[] { new { email } }, subject = "Verify your UNO account", textContent = "Verify your email within 30 minutes: " + frontend!.TrimEnd('/') + "/#verify=" + token });
