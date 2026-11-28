@@ -45,3 +45,18 @@ test('unauthorized account request rotates once and retries', async ({ page }) =
   expect(refreshes).toBe(2);
   expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
 });
+
+test('anonymous session probe returns to sign in without a session', async ({ page }) => {
+  let probes = 0;
+  await page.route('**/api/auth/refresh', route => {
+    expect(route.request().headers()['x-uno-session-probe']).toBe('1');
+    probes++;
+    return route.fulfill({ status: 204 });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Sign In', exact: true })).toBeVisible();
+  expect(probes).toBe(1);
+  await expect(page.getByRole('button', { name: 'Player profile' })).toHaveCount(0);
+  const icon = await page.request.get('/favicon.svg');
+  expect(icon.ok()).toBeTruthy();
+});
