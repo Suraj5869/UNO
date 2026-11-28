@@ -34,7 +34,7 @@ jobs:
           PGPASSWORD: uno_ci_only
         run: |
           psql -h localhost -U postgres -d uno_test -v ON_ERROR_STOP=1 -c "create role anon; create role authenticated; create role uno_runtime;"
-          for migration in 001_initial_schema 003_default_cosmetics 004_cosmetic_rewards 006_match_modes 008_session_security 010_email_verification; do
+          for migration in 001_initial_schema 002_social_schema 003_default_cosmetics 004_cosmetic_rewards 006_match_modes 008_session_security 010_email_verification; do
             psql -h localhost -U postgres -d uno_test -v ON_ERROR_STOP=1 -f "database/migrations/$migration.sql"
           done
       - name: Test
