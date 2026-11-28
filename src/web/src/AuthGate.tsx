@@ -39,7 +39,12 @@ function save(s: Omit<Session, 'expiresAt'>): Session {
 let rotating: Promise<Session> | null = null;
 let restoring: Promise<Session | undefined> | null = null;
 function restoreSession(): Promise<Session | undefined> {
-  if (!restoring) restoring = cookieLock(() => request<Session | undefined>('refresh', {}, undefined, undefined, true)).finally(() => { restoring = null; });
+  if (read()) return Promise.resolve(read()!);
+  if (!restoring) restoring = cookieLock(async () => {
+    if (read()) return read()!;
+    const restored = await request<Session | undefined>('refresh', {}, undefined, undefined, true);
+    return restored && !read() ? save(restored) : read() ?? undefined;
+  }).finally(() => { restoring = null; });
   return restoring;
 }
 function rotate(s: Session): Promise<Session> {
@@ -125,11 +130,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     let active = true;
     (async () => {
       try {
-        const restored = await restoreSession();
-        // React StrictMode can unmount the first effect while its shared
-        // cookie refresh is in flight. Preserve the successful response so
-        // the remounted effect does not rotate the same cookie twice.
-        if (restored && !read()) save(restored);
+        await restoreSession();
         if (!active) return;
         setGuest(false);
       } catch {
