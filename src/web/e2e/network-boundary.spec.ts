@@ -74,6 +74,17 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
     }
     await expect(connections[0].invoke('PlayCard', code, host.accessToken, initial.actionRevision, 0, 0)).rejects.toThrow();
     await expect(connections[1].invoke('DrawCard', code, guest.accessToken, initial.actionRevision)).rejects.toThrow();
+    // Every gameplay endpoint must reject stale revisions before engine validation.
+    for (const [method, args] of [
+      ['PlayCard', [0, 0]], ['DrawCard', []], ['PassAfterDraw', []],
+      ['AcceptDrawPenalty', []], ['AcceptWildDrawFour', []],
+      ['ChallengeWildDrawFour', []], ['CallUno', []], ['CatchUno', [host.playerId]],
+    ] as [string, unknown[]][]) {
+      const before = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
+      await expect(connections[1].invoke(method, code, guest.accessToken, initial.actionRevision, ...args)).rejects.toThrow();
+      const after = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
+      expect(after.actionRevision).toBe(before.actionRevision);
+    }
     const next = await connections[1].invoke<Snapshot>('GetGameState', code, guest.accessToken);
     await connections[1].invoke('DrawCard', code, guest.accessToken, next.actionRevision);
     await expect(connections[1].invoke('DrawCard', code, guest.accessToken, next.actionRevision)).rejects.toThrow();
