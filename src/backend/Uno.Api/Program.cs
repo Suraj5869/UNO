@@ -120,6 +120,11 @@ public static class UnoApi
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = 429;
+            options.OnRejected = (context, _) =>
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Uno.RateLimit").LogWarning("Rate limit rejected {Method} {Path}", context.HttpContext.Request.Method, context.HttpContext.Request.Path);
+                return ValueTask.CompletedTask;
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext,string>(context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 180, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             options.AddPolicy("rooms", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
