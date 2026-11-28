@@ -138,15 +138,17 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             expires_at=excluded.expires_at,created_at=now()
             where uno.email_verification_tokens.created_at < now()-interval '2 minutes'
             """,new { Email=email, Hash=JwtSettings.Hash(token) },cancellationToken:ct));
-        if (changed != 1) return "cooldown";
+        if (changed != 1) { services.GetRequiredService<ILogger<AuthController>>().LogInformation("Verification request skipped: cooldown or account already verified."); return "cooldown"; }
         try
         {
             await SendVerification(email, token, ct);
+            services.GetRequiredService<ILogger<AuthController>>().LogInformation("Verification email accepted by provider.");
             return "sent";
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
             services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed. Type: {Type}, Status: {Status}", ex.GetType().Name, (ex as HttpRequestException)?.StatusCode);
+            await db.ExecuteAsync(new CommandDefinition("delete from uno.email_verification_tokens where token_hash=@Hash", new { Hash=JwtSettings.Hash(token) }, cancellationToken:CancellationToken.None));
             return "failed";
         }
     }
@@ -202,7 +204,8 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         await connection.ExecuteAsync(new CommandDefinition("delete from uno.login_attempts where identifier_hash=@Hash",new { Hash=attemptKey },cancellationToken:ct));
         if (!account.EmailVerified)
         {
-            var delivery = await RequestVerification(source, account.Email, ct);
+            services.GetRequiredService<ILogger<AuthController>>().LogInformation("Unverified login: requesting verification email.");
+            var delivery = await RequestVerification(source, account.Email.Trim().ToLowerInvariant(), ct);
             return StatusCode(403, new { code = "EMAIL_NOT_VERIFIED", message = "Verify your email before signing in.", email = account.Email, verificationRequested = delivery == "sent", delivery });
         }
         await using var tx = await connection.BeginTransactionAsync(ct);
