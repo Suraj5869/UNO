@@ -114,13 +114,12 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     (async () => {
       try {
         const restored = await restoreSession();
+        // React StrictMode can unmount the first effect while its shared
+        // cookie refresh is in flight. Preserve the successful response so
+        // the remounted effect does not rotate the same cookie twice.
+        if (!read()) save(restored);
         if (!active) return;
-        save(restored);
-        const player = restored.player;
-        const current = read();
-        if (active && current && current.player.userId === player.userId) {
-          publishSession({ ...current, player }); setGuest(false);
-        }
+        setGuest(false);
       } catch {
         if (active && !read()) publishSession(null);
       } finally { if (active) setLoading(false); }
