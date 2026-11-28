@@ -12,6 +12,56 @@ using Uno.Api.Rooms;
 
 public sealed class MatchPersistenceTests
 {
+    private sealed class RetryLogger : Microsoft.Extensions.Logging.ILogger<MatchResultWriter>
+    {
+        public TaskCompletionSource<bool> Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel level, Microsoft.Extensions.Logging.EventId id, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is PostgresException) Failed.TrySetResult(true);
+        }
+    }
+
+    [Fact]
+    public async Task BackgroundWorkerRetriesAfterDatabaseFailure()
+    {
+        var cs = Environment.GetEnvironmentVariable("UNO_TEST_POSTGRES");
+        if (string.IsNullOrWhiteSpace(cs))
+        {
+            if (Environment.GetEnvironmentVariable("CI") == "true") throw new InvalidOperationException("Missing test database");
+            return;
+        }
+        await using var source = NpgsqlDataSource.Create(cs);
+        await using var db = await source.OpenConnectionAsync();
+        var user = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var match = new CompletedMatch(Guid.NewGuid(), Guid.NewGuid(), "TEST02", 2, 0, now.AddMinutes(-1), now, 12, [new ResultPlayer(Guid.NewGuid(), user, "Player", true)], "bots", 0);
+        var rooms = new RoomStore();
+        var checkpoint = System.Text.Json.JsonSerializer.Deserialize<RoomStore.RuntimeCheckpoint>(rooms.ExportRuntime())!;
+        rooms.RestoreRuntime(System.Text.Json.JsonSerializer.Serialize(checkpoint with { Pending = [match] }));
+        using var services = new ServiceCollection().AddSingleton(source).BuildServiceProvider();
+        var logger = new RetryLogger();
+        using var writer = new MatchResultWriter(rooms, services, logger, new ConfigurationBuilder().Build());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        await writer.StartAsync(timeout.Token);
+        try
+        {
+            await logger.Failed.Task.WaitAsync(timeout.Token);
+            Assert.Single(rooms.PendingResults());
+            Assert.Equal(0L, await db.ExecuteScalarAsync<long>("select count(*) from uno.matches where id=@Id", new { match.Id }));
+            await db.ExecuteAsync("""
+                insert into uno.users(id,email,password_hash) values (@User,@Email,'test');
+                insert into uno.player_progress(user_id) values (@User);
+                insert into uno.player_statistics(user_id) values (@User);
+                """, new { User = user, Email = user + "@example.test" });
+            while (rooms.PendingResults().Length != 0) await Task.Delay(100, timeout.Token);
+            Assert.Equal(1L, await db.ExecuteScalarAsync<long>("select count(*) from uno.xp_transactions where match_id=@Id", new { match.Id }));
+            Assert.Equal(10L, await db.ExecuteScalarAsync<long>("select total_xp from uno.player_progress where user_id=@User", new { User = user }));
+        }
+        finally { await writer.StopAsync(CancellationToken.None); }
+    }
+
     [Fact]
     public async Task MatchPersistenceIsAtomicIdempotentAndPrivate()
     {
