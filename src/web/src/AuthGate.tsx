@@ -11,7 +11,7 @@ function read(): Session | null { return memorySession; }
 function cookieLock<T>(action: () => Promise<T>): Promise<T> {
   return navigator.locks ? navigator.locks.request('uno-auth-cookie', action) : action();
 }
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly data?: { code?: string; email?: string; verificationRequested?: boolean; delivery?: string }) { super(message); }
 }
 const invalidSession = (error: unknown) => error instanceof ApiError && error.status === 401;
@@ -23,8 +23,8 @@ function publishSession(value: Session | null) {
   }
   window.dispatchEvent(new Event(SESSION_EVENT));
 }
-async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
-  const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'include', headers: { 'X-Uno-Browser': '1', 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+async function request<T>(path: string, body?: unknown, token?: string, method?: string, probe = false): Promise<T> {
+  const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'include', headers: { 'X-Uno-Browser': '1', ...(probe ? { 'X-Uno-Session-Probe': '1' } : {}), 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')', data);
@@ -37,9 +37,9 @@ function save(s: Omit<Session, 'expiresAt'>): Session {
   publishSession(value); return value;
 }
 let rotating: Promise<Session> | null = null;
-let restoring: Promise<Session> | null = null;
-function restoreSession(): Promise<Session> {
-  if (!restoring) restoring = cookieLock(() => request<Session>('refresh', {})).finally(() => { restoring = null; });
+let restoring: Promise<Session | undefined> | null = null;
+function restoreSession(): Promise<Session | undefined> {
+  if (!restoring) restoring = cookieLock(() => request<Session | undefined>('refresh', {}, undefined, undefined, true)).finally(() => { restoring = null; });
   return restoring;
 }
 function rotate(s: Session): Promise<Session> {
@@ -129,7 +129,7 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
         // React StrictMode can unmount the first effect while its shared
         // cookie refresh is in flight. Preserve the successful response so
         // the remounted effect does not rotate the same cookie twice.
-        if (!read()) save(restored);
+        if (restored && !read()) save(restored);
         if (!active) return;
         setGuest(false);
       } catch {
