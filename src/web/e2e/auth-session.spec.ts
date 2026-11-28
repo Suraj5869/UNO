@@ -14,7 +14,7 @@ test('cookie restoration keeps account credentials out of browser storage', asyn
   await page.route('**/api/auth/me', route => route.fulfill({ status: 503 }));
   await page.goto('/');
   await expect.poll(() => refreshes).toBe(1);
-  await expect(page.getByRole('heading', { name: 'Sign In', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
 });
 
@@ -32,9 +32,16 @@ test('unauthorized account request rotates once and retries', async ({ page }) =
   await page.route('**/api/auth/me', route => route.fulfill({ json: player }));
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Player profile' })).toBeVisible();
-  await page.route('**/api/auth/collection', route => route.request().headers().authorization === 'Bearer new-token' ? route.fulfill({ json: [] }) : route.fulfill({ status: 401 }));
+  let retried = false;
+  await page.route('**/api/progression', route => route.fulfill({ json: { level: 1, totalXp: 0, nextLevelXp: 100, seasonalLevel: 1, seasonalXp: 0, seasonEndsAt: '2030-01-01' } }));
+  await page.route('**/api/auth/collection', route => {
+    if (route.request().headers().authorization !== 'Bearer new-token') return route.fulfill({ status: 401 });
+    retried = true;
+    return route.fulfill({ json: [] });
+  });
   await page.getByRole('button', { name: 'Player profile' }).click();
   await page.getByRole('button', { name: 'Profile & collections' }).click();
-  await expect.poll(() => refreshes).toBe(2);
+  await expect.poll(() => retried).toBe(true);
+  expect(refreshes).toBe(2);
   expect(await page.evaluate(() => sessionStorage.getItem('uno-account-session'))).toBeNull();
 });
