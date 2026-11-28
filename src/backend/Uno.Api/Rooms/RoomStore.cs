@@ -10,9 +10,13 @@ namespace Uno.Api.Rooms;
 /// Room access tokens provide basic possession-based authorization until
 /// account authentication is added.
 /// </summary>
-public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
+public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, TimeProvider? clock = null)
 {
     private readonly object _sync = new();
+    private readonly Dictionary<Guid, DateTimeOffset> _credentialExpiry = new();
+    private DateTimeOffset Now => (clock ?? TimeProvider.System).GetUtcNow();
+    private bool CredentialActive(Guid seat) => _credentialExpiry.TryGetValue(seat, out var expiry) && expiry > Now;
+    private void IssueCredential(Guid seat) => _credentialExpiry[seat] = Now.AddHours(24);
     private readonly Dictionary<string, UnoGameRoom> _roomsByCode =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, Guid>> _tokensByRoomCode =
@@ -27,10 +31,10 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
     private readonly Dictionary<Guid,HashSet<Guid>> _participation = new();
     private readonly Dictionary<Guid,(string Code,string Token,string? Connection,DateTimeOffset? Expires)> _presence = new();
 
-    public sealed record RuntimeCheckpoint(UnoGameRoom.Checkpoint[] Rooms,Dictionary<string,Dictionary<string,Guid>> Tokens,Dictionary<string,Dictionary<Guid,string>> Rematches,Dictionary<Guid,BotDifficulty> Bots,Dictionary<Guid,int> Practice,Guid[] Ranked,Dictionary<Guid,List<ResultPlayer>> Departed,Dictionary<Guid,HashSet<Guid>> Participation,Dictionary<Guid,Guid> Accounts,CompletedMatch[] Pending,Guid[] Captured,string[] Queues, Dictionary<Guid,Guid>? SeatSessions = null);
+    public sealed record RuntimeCheckpoint(UnoGameRoom.Checkpoint[] Rooms,Dictionary<string,Dictionary<string,Guid>> Tokens,Dictionary<string,Dictionary<Guid,string>> Rematches,Dictionary<Guid,BotDifficulty> Bots,Dictionary<Guid,int> Practice,Guid[] Ranked,Dictionary<Guid,List<ResultPlayer>> Departed,Dictionary<Guid,HashSet<Guid>> Participation,Dictionary<Guid,Guid> Accounts,CompletedMatch[] Pending,Guid[] Captured,string[] Queues, Dictionary<Guid,Guid>? SeatSessions = null, Dictionary<Guid,DateTimeOffset>? CredentialExpiry = null);
     public string ExportRuntime()
     {
-        lock (_sync) return System.Text.Json.JsonSerializer.Serialize(new RuntimeCheckpoint(_roomsByCode.Values.Select(r=>r.ExportCheckpoint()).ToArray(),_tokensByRoomCode,_rematchCandidatesByRoomCode,_bots,_practiceMatches,_rankedMatches.ToArray(),_departed,_participation,_accounts,_pendingResults.Values.ToArray(),_captured.ToArray(),_matchmakingRooms.ToArray(),_seatSessions));
+        lock (_sync) return System.Text.Json.JsonSerializer.Serialize(new RuntimeCheckpoint(_roomsByCode.Values.Select(r=>r.ExportCheckpoint()).ToArray(),_tokensByRoomCode,_rematchCandidatesByRoomCode,_bots,_practiceMatches,_rankedMatches.ToArray(),_departed,_participation,_accounts,_pendingResults.Values.ToArray(),_captured.ToArray(),_matchmakingRooms.ToArray(),_seatSessions,_credentialExpiry));
     }
     public void RestoreRuntime(string json)
     {
@@ -38,7 +42,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         {
             foreach(var room in c.Rooms) _roomsByCode.Add(room.Code,UnoGameRoom.RestoreCheckpoint(room));
-            foreach(var p in c.Tokens) { _tokensByRoomCode.Add(p.Key,p.Value); foreach(var token in p.Value) _presence[token.Value]=(p.Key,token.Key,null,DateTimeOffset.UtcNow.AddSeconds(60)); }
+            foreach(var p in c.Tokens) { _tokensByRoomCode.Add(p.Key,p.Value); foreach(var token in p.Value) { _presence[token.Value]=(p.Key,token.Key,null,Now.AddSeconds(60)); _credentialExpiry[token.Value]=c.CredentialExpiry?.GetValueOrDefault(token.Value) ?? Now; } }
             foreach(var p in c.Rematches) _rematchCandidatesByRoomCode.Add(p.Key,p.Value);
             foreach(var p in c.Bots) _bots.Add(p.Key,p.Value);
             foreach(var p in c.Practice) _practiceMatches.Add(p.Key,p.Value);
@@ -57,8 +61,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         foreach(var room in _roomsByCode.Values.Where(r=>r.Players.All(p=>_bots.ContainsKey(p.Id)) || _tokensByRoomCode[r.Code].Count==0).ToArray())
         {
-            foreach(var seat in room.Players) { _bots.Remove(seat.Id); _accounts.Remove(seat.Id); _seatSessions.Remove(seat.Id); _presence.Remove(seat.Id); }
-            foreach(var seat in _tokensByRoomCode[room.Code].Values) { _accounts.Remove(seat); _seatSessions.Remove(seat); _presence.Remove(seat); }
+            foreach(var seat in room.Players) { _bots.Remove(seat.Id); _accounts.Remove(seat.Id); _seatSessions.Remove(seat.Id); _presence.Remove(seat.Id); _credentialExpiry.Remove(seat.Id); }
+            foreach(var seat in _tokensByRoomCode[room.Code].Values) { _accounts.Remove(seat); _seatSessions.Remove(seat); _presence.Remove(seat); _credentialExpiry.Remove(seat); }
             if(room.Game is {} game) { _captured.Remove(game.MatchId); _rankedMatches.Remove(game.MatchId); _practiceMatches.Remove(game.MatchId); _departed.Remove(game.MatchId); _participation.Remove(game.MatchId); }
             _roomsByCode.Remove(room.Code); _tokensByRoomCode.Remove(room.Code); _rematchCandidatesByRoomCode.Remove(room.Code); _matchmakingRooms.Remove(room.Code);
         }
@@ -83,7 +87,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         {
             var room = GetByCodeUnsafe(code);
-            if (!_tokensByRoomCode[room.Code].TryGetValue(token, out var seat)) throw new UnauthorizedAccessException("Invalid room credential.");
+            if (!_tokensByRoomCode[room.Code].TryGetValue(token, out var seat) || !CredentialActive(seat)) throw new UnauthorizedAccessException("Invalid room credential.");
             if (_accounts.TryGetValue(seat, out var owner) && (owner != accountId || !sessionId.HasValue || !_seatSessions.TryGetValue(seat, out var bound) || bound != sessionId.Value))
                 throw new UnauthorizedAccessException("Room session mismatch.");
         }
@@ -113,7 +117,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             return room.Players.Where(p => playerId == null || p.Id == playerId)
                 .Select(p => _presence.GetValueOrDefault(p.Id))
                 .Where(p => p.Connection != null && string.Equals(p.Code, room.Code, StringComparison.OrdinalIgnoreCase)
-                    && _tokensByRoomCode[room.Code].ContainsKey(p.Token))
+                    && _tokensByRoomCode[room.Code].TryGetValue(p.Token, out var seat) && CredentialActive(seat))
                 .Select(p => p.Connection!).Distinct().ToArray();
         }
     }
@@ -127,7 +131,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
         lock (_sync)
         {
             var changed=new HashSet<string>();
-            foreach(var entry in _presence.Where(p=>p.Value.Expires is {} expires && expires<=DateTimeOffset.UtcNow).ToArray())
+            foreach(var entry in _presence.Where(p=>!CredentialActive(p.Key) || (p.Value.Expires is {} expires && expires<=Now)).ToArray())
             {
                 _presence.Remove(entry.Key);
                 try { Leave(entry.Value.Code,entry.Value.Token); changed.Add(entry.Value.Code); }
@@ -264,7 +268,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             }
 
             if (userId.HasValue) _accounts.Add(room.CreatorPlayerId, userId.Value);
-            _presence[room.CreatorPlayerId]=(room.Code,accessToken,null,DateTimeOffset.UtcNow.AddSeconds(60));
+            IssueCredential(room.CreatorPlayerId);
+            _presence[room.CreatorPlayerId]=(room.Code,accessToken,null,Now.AddSeconds(60));
             _roomsByCode.Add(room.Code, room);
             _tokensByRoomCode.Add(
                 room.Code,
@@ -293,7 +298,8 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             var player = room.Join(displayName);
             if (userId.HasValue) _accounts.Add(player.Id, userId.Value);
             _tokensByRoomCode[room.Code].Add(accessToken, player.Id);
-            _presence[player.Id]=(room.Code,accessToken,null,DateTimeOffset.UtcNow.AddSeconds(60));
+            IssueCredential(player.Id);
+        _presence[player.Id]=(room.Code,accessToken,null,Now.AddSeconds(60));
             return (room, player.Id, accessToken);
         }
     }
@@ -328,7 +334,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             }
             else if (room.Status == UnoRoomStatus.Waiting)
             {
-                if (room.Players.Any(player => player.Id == playerId))
+                if (CredentialActive(playerId) && room.Players.Any(player => player.Id == playerId))
                 {
                     return (room, playerId, accessToken);
                 }
@@ -378,7 +384,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
                     _tokensByRoomCode[room.Code].Remove(revokedToken);
                     _accounts.Remove(revokedSeat);
                     _seatSessions.Remove(revokedSeat);
-                    _presence.Remove(revokedSeat);
+                    _presence.Remove(revokedSeat); _credentialExpiry.Remove(revokedSeat);
                 }
             }
             return game;
@@ -404,7 +410,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null)
             if (room.Game is not null) CaptureResult(room, abandoned:room.Players.All(p=>_bots.ContainsKey(p.Id)));
             _accounts.Remove(playerId);
             _seatSessions.Remove(playerId);
-            _presence.Remove(playerId);
+            _presence.Remove(playerId); _credentialExpiry.Remove(playerId);
             _tokensByRoomCode[room.Code].Remove(accessToken);
             if(room.Players.All(p=>_bots.ContainsKey(p.Id))) _matchmakingRooms.Remove(room.Code);
             if (_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates))
