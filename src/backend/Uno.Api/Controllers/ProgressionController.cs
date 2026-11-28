@@ -55,7 +55,7 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
         if (!Guid.TryParse(User.FindFirstValue("sub"), out var id)) return Unauthorized();
         if (services.GetService<NpgsqlDataSource>() is not {} source) return StatusCode(503);
         await using var db = await source.OpenConnectionAsync(ct);
-        var row = await db.QuerySingleOrDefaultAsync<HistoryRow>(new CommandDefinition("""
+        Task<HistoryRow?> ReadReward() => db.QuerySingleOrDefaultAsync<HistoryRow>(new CommandDefinition("""
             select m.id as MatchId,m.completed_at as CompletedAt,m.variant,m.rule_set as RuleSet,
             coalesce(p.finish_position=1,false) as Won,
             coalesce((select sum(x.amount) from uno.xp_transactions x where x.match_id=m.id and x.user_id=@Id),0) as Xp, m.match_mode as Mode, m.bot_difficulty as Difficulty, p.abandoned as Abandoned,
@@ -63,6 +63,11 @@ public sealed class ProgressionController(IServiceProvider services) : Controlle
             from uno.matches m join uno.match_players p on p.match_id=m.id
             where m.id=@MatchId and p.user_id=@Id and m.status='completed' and m.completed_at is not null
             """, new { MatchId=matchId, Id=id }, cancellationToken:ct));
+        var row = await ReadReward();
+        if (row is not null) return Ok(row);
+        if (services.GetService<Uno.Api.Rooms.RoomStore>()?.PendingResults().Any(m => m.Id == matchId && m.Players.Any(p => p.UserId == id)) == true)
+            return Accepted(new { pending = true });
+        row = await ReadReward();
         return row is null ? NotFound() : Ok(row);
     }
 
