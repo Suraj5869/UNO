@@ -36,7 +36,7 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
   const connections = identities.map(() => new HubConnectionBuilder().withUrl(origin + '/hubs/uno-room').build());
   const received: Snapshot[][] = connections.map(() => []);
   const publicDraws: { action: string; card: unknown; drawCount: number; playerId: string }[] = [];
-  connections[0].on('GameAction', event => {
+  connections[2].on('GameAction', event => {
     if (event.action === 'CardDrawn') publicDraws.push(event);
   });
   try {
@@ -49,13 +49,16 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
       data: { accessToken: host.accessToken }, headers: { 'X-Test-Deal': 'numbers' },
     });
     expect(start.ok()).toBeTruthy();
-    await expect(connections[0].invoke('GetGameState', code, outsider.accessToken)).rejects.toThrow();
+    await expect(connections[2].invoke('GetGameState', code, outsider.accessToken)).rejects.toThrow();
+    // Rejoining the same seat replaces its previous connection.
+    await expect(connections[0].invoke('GetGameState', code, host.accessToken)).rejects.toThrow();
     await expect(connections[1].invoke('PlayCard', code, guest.accessToken, 0, 0)).rejects.toThrow();
-    const results = await Promise.allSettled([connections[0], connections[2]].map(
+    const results = await Promise.allSettled([connections[2], connections[2]].map(
       hub => hub.invoke('PlayCard', code, host.accessToken, 0, 0),
     ));
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     for (const [i, updates] of received.entries()) {
+      if (i === 0) { expect(updates).toHaveLength(0); continue; }
       await expect.poll(() => updates.at(-1)?.currentPlayerId).toBe(guest.playerId);
       expect(updates.at(-1)?.players.map(seat => seat.cardCount)).toEqual([6, 7]);
       for (const state of updates) {
@@ -67,13 +70,15 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
         }
       }
     }
+    await expect(connections[0].invoke('PlayCard', code, host.accessToken, 0, 0)).rejects.toThrow();
     await connections[1].invoke('DrawCard', code, guest.accessToken);
     await expect.poll(() => publicDraws.length).toBe(1);
     expect(publicDraws[0]).toMatchObject({ card: null, drawCount: 1, playerId: guest.playerId });
-    await expect.poll(() => received[0].at(-1)?.players[1].cardCount).toBe(8);
-    expect(received[0].at(-1)?.players[1].hand).toBeNull();
-    expect(received[0].at(-1)).toHaveProperty('justDrawnCard', null);
+    await expect.poll(() => received[2].at(-1)?.players[1].cardCount).toBe(8);
+    expect(received[2].at(-1)?.players[1].hand).toBeNull();
+    expect(received[2].at(-1)).toHaveProperty('justDrawnCard', null);
 
+    expect(received[0]).toHaveLength(0);
     await connections[1].invoke('LeaveRoom', code, guest.accessToken);
     await connections[1].stop();
     await connections[1].start();
