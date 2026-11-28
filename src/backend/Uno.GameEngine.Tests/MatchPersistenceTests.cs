@@ -96,7 +96,7 @@ public sealed class MatchPersistenceTests
         Assert.IsType<NotFoundResult>(await controller.Reward(match.Id, default));
         var checkpoint = System.Text.Json.JsonSerializer.Deserialize<RoomStore.RuntimeCheckpoint>(rooms.ExportRuntime())!;
         rooms.RestoreRuntime(System.Text.Json.JsonSerializer.Serialize(checkpoint with { Pending = [match] }));
-        Assert.IsType<AcceptedObjectResult>(await controller.Reward(match.Id, default));
+        Assert.Equal(202, Assert.IsAssignableFrom<ObjectResult>(await controller.Reward(match.Id, default)).StatusCode);
         SignIn(outsider);
         Assert.IsType<NotFoundResult>(await controller.Reward(match.Id, default));
         SignIn(user);
@@ -107,7 +107,7 @@ public sealed class MatchPersistenceTests
         var invalid = match with { Players = [new ResultPlayer(Guid.NewGuid(), outsider, "Missing", true)] };
         await Assert.ThrowsAsync<PostgresException>(() => writer.Save(source, invalid, default));
         Assert.Equal(0L, await db.ExecuteScalarAsync<long>("select count(*) from uno.matches where id=@Id", new { match.Id }));
-        Assert.IsType<AcceptedObjectResult>(await controller.Reward(match.Id, default));
+        Assert.Equal(202, Assert.IsAssignableFrom<ObjectResult>(await controller.Reward(match.Id, default)).StatusCode);
         await writer.Save(source, match, default);
         rooms.AcknowledgeResult(match.Id);
         Assert.Empty(rooms.PendingResults());
