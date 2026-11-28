@@ -25,7 +25,7 @@ public sealed class MatchResultWriter(RoomStore rooms, IServiceProvider services
         }
     }
 
-    private async Task Save(NpgsqlDataSource source, CompletedMatch match, CancellationToken ct)
+    public async Task Save(NpgsqlDataSource source, CompletedMatch match, CancellationToken ct)
     {
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
