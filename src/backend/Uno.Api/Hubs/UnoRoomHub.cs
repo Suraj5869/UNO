@@ -177,7 +177,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
-            GameStateResponse.RequireRevision(room, revision);
+            RequireRevision(room, revision);
             var participant = room.Players.First(candidate => candidate.Id == playerId);
             new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId));
             return participant.DisplayName;
@@ -215,7 +215,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
-            GameStateResponse.RequireRevision(room, revision);
+            RequireRevision(room, revision);
             var wasCurrent = room.Game is {} before && before.CurrentPlayer.Id == GetGamePlayerId(room,playerId);
             action(room, playerId);
             if (wasCurrent && room.Game is {} game) roomStore.MarkParticipation(game.MatchId,playerId);
@@ -228,6 +228,12 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
 
         await publisher.PublishRoomAsync(code);
         await publisher.PublishGameStateAsync(code);
+    }
+
+    private static void RequireRevision(UnoGameRoom room, string revision)
+    {
+        try { GameStateResponse.RequireRevision(room, revision); }
+        catch (InvalidOperationException) { throw new HubException("Game state changed. Refresh and retry."); }
     }
 
     private void RequireConnection(string code, string accessToken)
