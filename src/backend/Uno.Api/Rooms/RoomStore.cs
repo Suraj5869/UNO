@@ -470,7 +470,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
         {
             var room = GetByCodeUnsafe(code);
             if (_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId) &&
-                room.Players.Any(player => player.Id == playerId))
+                CredentialActive(playerId) && room.Players.Any(player => player.Id == playerId))
             {
                 return playerId;
             }
