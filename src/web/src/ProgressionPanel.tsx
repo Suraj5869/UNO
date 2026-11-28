@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { accountRequest, type Profile } from './AuthGate';
+import { accountRequest, ApiError, type Profile } from './AuthGate';
 import './progression.css';
 
 type ModeStats = { mode: string; matchesPlayed: number; wins: number; losses: number; abandoned: number };
@@ -30,6 +30,16 @@ export function MatchHistory(){
  return <div className="hub-history"><h3>Match history</h3><nav className="hub-tabs" aria-label="Match filters">{[['all','All'],['bots','Vs Bots'],['rooms','Rooms'],['ranked','Ranked'],['legacy','Legacy']].map(([key,label])=><button key={key} aria-pressed={mode===key} onClick={()=>{setOffset(0);setMode(key)}}>{label}</button>)}</nav>{error?<div className="collection-retry" role="alert"><p>{error}</p><button className="collection-primary" onClick={()=>retry(n=>n+1)}>Retry history</button></div>:loading?<p role="status">Loading matches…</p>:<>{!history.length&&<div className="hub-stat-card"><strong>No completed matches yet</strong><small>{offset===0?'Your recorded matches will appear here.':'No more matches on this page.'}</small></div>}{history.map(h=><article className="hub-history-row" key={h.matchId}><div><strong>{h.variant==='classic'?'Classic UNO':h.variant}</strong><small>{h.mode==='bots'?'Vs Bots · '+(['Easy','Medium','Hard'][h.difficulty??0]):h.mode==='ranked'?'Ranked':h.mode==='legacy'?'Legacy':'Rooms'} · {h.ruleSet===1?'House':'Official'} · {new Date(h.completedAt).toLocaleDateString()}</small><span className={h.won?'hub-win':'hub-loss'}>{h.abandoned?'Abandoned':h.won?'Victory':'Defeat'}</span></div><div><strong className="hub-history-xp">+{h.xp} lifetime XP</strong>{h.seasonalXp>0&&<small>+{h.seasonalXp} seasonal XP</small>}</div></article>)}</>}{(offset>0||history.length>=10)&&<div className="progression-pagination"><button className="collection-primary" disabled={loading||offset===0} onClick={()=>setOffset(n=>Math.max(0,n-10))}>Previous</button><button className="collection-primary" disabled={loading||!!error||history.length<10} onClick={()=>setOffset(n=>n+10)}>Next</button></div>}</div>;
 }
 
+const rewardRequests = new Map<string, Promise<History | { pending: true }>>();
+function fetchReward(matchId: string, userId: string) {
+  const key = userId + ':' + matchId;
+  let request = rewardRequests.get(key);
+  if (!request) {
+    request = accountRequest<History | { pending: true }>('/api/progression/reward/' + matchId).finally(() => rewardRequests.delete(key));
+    rewardRequests.set(key, request);
+  }
+  return request;
+}
 export function MatchReward({matchId, player, onUpdate}: {matchId: string; player: Profile; onUpdate: (p: Profile)=>void}) {
   const [reward,setReward] = useState<History>();
   const [levelUp,setLevelUp] = useState(false);
@@ -41,13 +51,15 @@ export function MatchReward({matchId, player, onUpdate}: {matchId: string; playe
     const initialLevel = player.level;
     const poll = async () => {
       try {
-        const result = await accountRequest<History>('/api/progression/reward/' + matchId);
+        const result = await fetchReward(matchId, player.userId);
         if (!active) return;
+        if ('pending' in result) { if (++tries < 8) timer = window.setTimeout(poll, 2000); else setUnavailable(true); return; }
         setReward(result);
         const profile = await accountRequest<Profile>('me');
         if (active) { setLevelUp(profile.level > initialLevel); onUpdate(profile); }
-      } catch {
+      } catch (error) {
         if (!active) return;
+        if (error instanceof ApiError && [401,403,404].includes(error.status)) { setUnavailable(true); return; }
         if (++tries < 8) timer = window.setTimeout(poll, 2000);
         else setUnavailable(true);
       }
@@ -55,5 +67,5 @@ export function MatchReward({matchId, player, onUpdate}: {matchId: string; playe
     void poll();
     return () => { active=false; window.clearTimeout(timer); };
   }, [matchId, player.userId]);
-  return <div className="match-reward" role="status">{reward ? <><strong>+{reward.xp} lifetime XP</strong>{reward.seasonalXp>0&&<span>+{reward.seasonalXp} seasonal XP</span>}{levelUp && <span className="progression-level-up">Level up!</span>}</> : unavailable ? 'No saved reward yet. Check match history later.' : 'Checking match rewards…'}</div>;
+  return <div className="match-reward" role="status">{reward ? <><strong>+{reward.xp} lifetime XP</strong>{reward.seasonalXp>0&&<span>+{reward.seasonalXp} seasonal XP</span>}{levelUp && <span className="progression-level-up">Level up!</span>}</> : unavailable ? 'No saved reward yet. Check match history later.' : 'Calculating your rewards…'}</div>;
 }
