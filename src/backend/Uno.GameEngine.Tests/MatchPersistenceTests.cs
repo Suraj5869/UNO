@@ -31,8 +31,9 @@ public sealed class MatchPersistenceTests
             insert into uno.player_progress(user_id) values (@User);
             insert into uno.player_statistics(user_id) values (@User);
             """, new { User = user, Email = user + "@example.test" });
-        using var services = new ServiceCollection().AddSingleton(source).BuildServiceProvider();
-        var writer = new MatchResultWriter(new RoomStore(), services, NullLogger<MatchResultWriter>.Instance, new ConfigurationBuilder().Build());
+        var rooms = new RoomStore();
+        using var services = new ServiceCollection().AddSingleton(source).AddSingleton(rooms).BuildServiceProvider();
+        var writer = new MatchResultWriter(rooms, services, NullLogger<MatchResultWriter>.Instance, new ConfigurationBuilder().Build());
         var now = DateTimeOffset.UtcNow;
         var match = new CompletedMatch(Guid.NewGuid(), Guid.NewGuid(), "TEST01", 2, 0,
             now.AddMinutes(-1), now, 12, [new ResultPlayer(Guid.NewGuid(), user, "Player", true)], "bots", 0);
@@ -43,11 +44,23 @@ public sealed class MatchPersistenceTests
         };
         SignIn(user);
         Assert.IsType<NotFoundResult>(await controller.Reward(match.Id, default));
+        var checkpoint = System.Text.Json.JsonSerializer.Deserialize<RoomStore.RuntimeCheckpoint>(rooms.ExportRuntime())!;
+        rooms.RestoreRuntime(System.Text.Json.JsonSerializer.Serialize(checkpoint with { Pending = [match] }));
+        Assert.IsType<AcceptedObjectResult>(await controller.Reward(match.Id, default));
+        SignIn(outsider);
+        Assert.IsType<NotFoundResult>(await controller.Reward(match.Id, default));
+        SignIn(user);
+        var recovered = new RoomStore();
+        recovered.RestoreRuntime(rooms.ExportRuntime());
+        Assert.Equal(match.Id, Assert.Single(recovered.PendingResults()).Id);
         // Force a foreign-key failure after the match insert; the entire transaction must roll back.
         var invalid = match with { Players = [new ResultPlayer(Guid.NewGuid(), outsider, "Missing", true)] };
         await Assert.ThrowsAsync<PostgresException>(() => writer.Save(source, invalid, default));
         Assert.Equal(0L, await db.ExecuteScalarAsync<long>("select count(*) from uno.matches where id=@Id", new { match.Id }));
+        Assert.IsType<AcceptedObjectResult>(await controller.Reward(match.Id, default));
         await writer.Save(source, match, default);
+        rooms.AcknowledgeResult(match.Id);
+        Assert.Empty(rooms.PendingResults());
         await writer.Save(source, match, default);
         Assert.Equal(1L, await db.ExecuteScalarAsync<long>("select count(*) from uno.xp_transactions where match_id=@Id", new { match.Id }));
         Assert.Equal(10L, await db.ExecuteScalarAsync<long>("select total_xp from uno.player_progress where user_id=@User", new { User = user }));
