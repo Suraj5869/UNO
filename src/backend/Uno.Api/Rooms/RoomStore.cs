@@ -317,7 +317,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
         {
             var room = GetByCodeUnsafe(code);
             if (string.IsNullOrWhiteSpace(accessToken) ||
-                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId) || !CredentialActive(playerId))
             {
                 throw new UnauthorizedAccessException("The room access token is invalid.");
             }
@@ -336,7 +336,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
             {
                 if (CredentialActive(playerId) && room.Players.Any(player => player.Id == playerId))
                 {
-                    return (room, playerId, accessToken);
+                    return (room, playerId, RotateCredential(room.Code, playerId, accessToken));
                 }
 
                 if (!_rematchCandidatesByRoomCode.TryGetValue(room.Code, out var candidates) ||
@@ -353,7 +353,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
                 throw new InvalidOperationException("Play Again is available only after a match has completed.");
             }
 
-            return (room, playerId, accessToken);
+            return (room, playerId, RotateCredential(room.Code, playerId, accessToken));
         }
     }
 
@@ -364,7 +364,7 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
         {
             var room = GetByCodeUnsafe(code);
             if (string.IsNullOrWhiteSpace(accessToken) ||
-                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId))
+                !_tokensByRoomCode[room.Code].TryGetValue(accessToken, out var playerId) || !CredentialActive(playerId))
             {
                 throw new UnauthorizedAccessException("The room access token is invalid.");
             }
@@ -492,6 +492,16 @@ public sealed class RoomStore(Func<UnoGameRoom, Random?>? dealRandom = null, Tim
         }
 
         throw new KeyNotFoundException("Room was not found.");
+    }
+
+    private string RotateCredential(string code, Guid seat, string oldToken)
+    {
+        var next = GenerateAccessToken();
+        _tokensByRoomCode[code].Remove(oldToken);
+        _tokensByRoomCode[code].Add(next, seat);
+        IssueCredential(seat);
+        _presence[seat] = (code, next, null, Now.AddSeconds(60));
+        return next;
     }
 
     private static string GenerateAccessToken() =>
