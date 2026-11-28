@@ -23,7 +23,11 @@ test('private broadcasts stay with their seat and concurrent plays advance exact
   const join = await request.post(url + '/join', { data: { displayName: 'Guest' } });
   expect(join.ok()).toBeTruthy();
   const guest = await join.json();
-  const summary = await (await request.get(url)).json();
+  expect((await request.get(url)).status()).toBe(404);
+  expect((await request.get(url, { headers: { 'X-Room-Token': outsider.accessToken } })).status()).toBe(404);
+  const summaryResponse = await request.get(url, { headers: { 'X-Room-Token': host.accessToken } });
+  expect(summaryResponse.status()).toBe(200);
+  const summary = await summaryResponse.json();
   for (const seat of summary.players) {
     expect(Object.keys(seat).sort()).toEqual(['displayName', 'gamePlayerId', 'id', 'isCreator']);
   }
@@ -84,13 +88,14 @@ test('concurrent joins claim the last seat once and keep rooms independent', asy
   const roomsUrl = origin + '/api/rooms';
   const invalid = await request.post(roomsUrl, { data: { creatorDisplayName: '   ' } });
   expect(invalid.status()).toBe(400);
-  const codes = await Promise.all(['First host', 'Second host'].map(async creatorDisplayName => {
+  const rooms = await Promise.all(['First host', 'Second host'].map(async creatorDisplayName => {
     const response = await request.post(roomsUrl, { data: { creatorDisplayName, maximumPlayers: 2 } });
     expect(response.status()).toBe(201);
-    return (await response.json()).room.code as string;
+    return await response.json() as { room: { code: string }; accessToken: string };
   }));
-  expect(codes[0]).not.toBe(codes[1]);
-  await Promise.all(codes.map(async (code, index) => {
+  expect(rooms[0].room.code).not.toBe(rooms[1].room.code);
+  await Promise.all(rooms.map(async (room, index) => {
+    const code = room.room.code;
     const url = roomsUrl + '/' + code;
     const invalidJoin = await request.post(url + '/join', { data: { displayName: ' ' } });
     expect(invalidJoin.status()).toBe(400);
@@ -98,7 +103,11 @@ test('concurrent joins claim the last seat once and keep rooms independent', asy
     const joins = await Promise.all(names.map(displayName =>
       request.post(url + '/join', { data: { displayName } })));
     expect(joins.map(response => response.status()).sort()).toEqual([200, 409]);
-    const summary = await (await request.get(url)).json();
+    const otherRoom = rooms[1 - index];
+    expect((await request.get(url, { headers: { 'X-Room-Token': otherRoom.accessToken } })).status()).toBe(404);
+    const summaryResponse = await request.get(url, { headers: { 'X-Room-Token': room.accessToken } });
+    expect(summaryResponse.status()).toBe(200);
+    const summary = await summaryResponse.json();
     const winningIndex = joins.findIndex(response => response.ok());
     expect(summary.players.map((seat: { displayName: string }) => seat.displayName))
       .toEqual([index === 0 ? 'First host' : 'Second host', names[winningIndex]]);
