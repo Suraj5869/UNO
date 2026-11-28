@@ -9,19 +9,20 @@ test('public queues isolate settings and start only at requested capacity', asyn
       await p.goto('/');
       await p.getByRole('button',{name:'Sign In as Guest'}).click();
       await p.getByLabel('Your display name').fill('Queue '+i);
+      await p.getByRole('button',{name:/Ranked/}).click();
       await p.getByLabel('Players per match').selectOption(count);
       await p.getByLabel('Match rules').selectOption(rules);
-      await p.getByRole('button',{name:/Play Match/}).click();
+      await p.getByRole('button',{name:/Find match/}).click();
     }
     await search(0,'3','0');
-    await expect(pages[0].getByText('1 of 3 players found')).toBeVisible();
+    await expect(pages[0].getByText(/1 of 3 players found/)).toBeVisible();
     await search(1,'3','1');
-    await expect(pages[1].getByText('1 of 3 players found')).toBeVisible();
+    await expect(pages[1].getByText(/1 of 3 players found/)).toBeVisible();
     await search(2,'3','0');
-    await expect(pages[0].getByText('2 of 3 players found')).toBeVisible();
+    await expect(pages[0].getByText(/2 of 3 players found/)).toBeVisible();
     await search(3,'3','0');
     for(const i of [0,2,3]) await expect(pages[i].locator('.table-felt')).toBeVisible();
     await pages[1].getByRole('button',{name:'Cancel search'}).click();
-    await expect(pages[1].getByRole('button',{name:/Play Match/})).toBeVisible();
+    await expect(pages[1].getByRole('button',{name:/Ranked/})).toBeVisible();
   } finally { await Promise.allSettled(contexts.map(c=>c.close())); }
 });

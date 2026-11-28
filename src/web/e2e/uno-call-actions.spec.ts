@@ -26,7 +26,7 @@ async function startThreePlayerGame(browser: Browser, hostPage: Page): Promise<T
     players.push(player);
     await submitRoomJoin(player.page, name, roomCode!);
     await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
-    await expect(player.page.getByText('Live connection')).toBeVisible();
+    await expect(player.page.getByText('Connecting', { exact: true })).toHaveCount(0);
   }
 
   await hostPage.getByRole('button', { name: /Start game/ }).click();

@@ -97,7 +97,7 @@ public sealed class SocialController(IServiceProvider services, RoomStore rooms)
     {
         if(Source is not {} source)return StatusCode(503);
         try {
-            if(!rooms.CanInvite(request.RoomCode,request.AccessToken,Id))return Forbid();
+            if(!rooms.CanInvite(request.RoomCode,request.AccessToken,Id,Guid.TryParse(User.FindFirstValue("sid"),out var sid) ? sid : null))return Forbid();
         } catch(KeyNotFoundException){return NotFound();} catch(UnauthorizedAccessException){return Forbid();}
         await using var db=await source.OpenConnectionAsync(ct);
         var n=await db.ExecuteAsync(new CommandDefinition("""

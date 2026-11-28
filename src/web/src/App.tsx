@@ -9,7 +9,7 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signal
 import './styles.css';
 import ProfileMenu from './ProfileMenu';
 import { MatchReward } from './ProgressionPanel';
-import AuthGate, { accountRequest, type Profile } from './AuthGate';
+import AuthGate, { accountRequest, accountAccessToken, type Profile } from './AuthGate';
 
 const API = (import.meta.env.VITE_API_URL || 'https://localhost:7137').replace(/\/$/, '');
 const HUB = import.meta.env.VITE_SIGNALR_URL || API + '/hubs/uno-room';
@@ -93,7 +93,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
 
   const api = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
     if (player && init?.method === 'POST' && (path === '/api/rooms' || path === '/api/rooms/matchmaking' || path === '/api/rooms/practice' || path.endsWith('/join'))) return accountRequest<T>(path, init.body ? JSON.parse(String(init.body)) : undefined, 'POST');
-    const response = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
+    const response = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', ...(player ? { Authorization: 'Bearer ' + await accountAccessToken() } : {}), ...init?.headers } });
     if (!response.ok) throw new Error(await messageFor(response));
     return response.status === 204 ? undefined as T : await response.json() as T;
   }, [player?.userId]);
@@ -180,7 +180,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
     if (!access) return;
     let active = true;
     lastActionSequence.current = 0;
-    const connection = new HubConnectionBuilder().withUrl(HUB).withAutomaticReconnect().configureLogging(LogLevel.Warning).build();
+    const connection = new HubConnectionBuilder().withUrl(HUB, { accessTokenFactory: accountAccessToken }).withAutomaticReconnect().configureLogging(LogLevel.Warning).build();
     connection.on('RoomUpdated', (value: Room) => {
       if (!active || completedGameRef.current) return;
       if (!acceptRoom(value)) return;

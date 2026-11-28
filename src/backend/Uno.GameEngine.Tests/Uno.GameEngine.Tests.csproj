@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Uno.GameEngine\Uno.GameEngine.csproj" />
+    <ProjectReference Include="..\Uno.Api\Uno.Api.csproj" />
   </ItemGroup>
 
 </Project>

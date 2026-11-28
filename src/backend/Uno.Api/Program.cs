@@ -15,7 +15,7 @@ UnoApi.Build(args).Run();
 
 public static class UnoApi
 {
-    public static WebApplication Build(string[] args, Action<IServiceCollection>? configureServices = null)
+    public static WebApplication Build(string[] args, Action<IServiceCollection>? configureServices = null, bool browserTestHost = false)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +77,11 @@ public static class UnoApi
                 options.MapInboundClaims = false;
                 options.Events = new JwtBearerEvents
                 {
+                    OnMessageReceived = context =>
+                    {
+                        if (context.HttpContext.Request.Path.StartsWithSegments("/hubs/uno-room") && context.Request.Query.TryGetValue("access_token", out var token)) context.Token = token.ToString();
+                        return Task.CompletedTask;
+                    },
                     OnTokenValidated = async context =>
                     {
                         if (!Guid.TryParse(context.Principal?.FindFirst("sid")?.Value,out var sessionId) ||
@@ -115,6 +120,11 @@ public static class UnoApi
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = 429;
+            options.OnRejected = (context, _) =>
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Uno.RateLimit").LogWarning("Rate limit rejected {Method} {Path}", context.HttpContext.Request.Method, context.HttpContext.Request.Path);
+                return ValueTask.CompletedTask;
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext,string>(context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 180, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
             options.AddPolicy("rooms", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -171,7 +181,7 @@ public static class UnoApi
             await next();
         });
         app.UseAuthorization();
-        app.UseRateLimiter();
+        if (!browserTestHost || !app.Environment.IsDevelopment()) app.UseRateLimiter();
 
         app.MapGet("/api/health/database", async (HttpContext context, CancellationToken cancellationToken) =>
         {
@@ -190,7 +200,7 @@ public static class UnoApi
             }
         });
         app.MapControllers();
-        app.MapHub<UnoRoomHub>("/hubs/uno-room");
+        app.MapHub<UnoRoomHub>("/hubs/uno-room", options => options.CloseOnAuthenticationExpiration = true);
 
         return app;
     }

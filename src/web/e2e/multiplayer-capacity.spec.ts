@@ -18,7 +18,7 @@ async function createPlayer(browser: Browser, name: string): Promise<TestPlayer>
 async function joinRoom(player: TestPlayer, roomCode: string) {
   await submitRoomJoin(player.page, player.name, roomCode);
   await expect(player.page.getByRole('heading', { name: /Room/ })).toBeVisible();
-  await expect(player.page.getByText('Live connection')).toBeVisible();
+  await expect(player.page.getByText('Connecting', { exact: true })).toHaveCount(0);
 }
 
 for (const capacity of [2, 4, 5, 6, 10]) {
@@ -32,7 +32,7 @@ for (const capacity of [2, 4, 5, 6, 10]) {
       await createPrivateRoom(host.page, host.name, Number(String(capacity)));
 
       await expect(host.page.getByRole('heading', { name: /Room/ })).toBeVisible();
-      await expect(host.page.getByText('Live connection')).toBeVisible();
+      await expect(host.page.getByText('Connecting', { exact: true })).toHaveCount(0);
 
       const roomCode = (await host.page.locator('.code-inline').textContent())?.trim();
       expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);

@@ -30,7 +30,7 @@ UnoApi.Build(args, services =>
         }
         throw new InvalidOperationException("Could not find the requested opening deal.");
     });
-}).Run();
+}, browserTestHost: true).Run();
 
 // Leave the standard deck in factory order during Fisher-Yates.
 sealed class OrderedDeck : Random

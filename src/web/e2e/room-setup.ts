@@ -20,7 +20,10 @@ export async function createPrivateRoom(page: Page, name: string, capacity: numb
       await route.continue({ postData: JSON.stringify({ ...route.request().postDataJSON(), maximumPlayers: capacity }) });
     });
   }
+  const created = page.waitForResponse(response => response.url().endsWith('/api/rooms') && response.request().method() === 'POST');
   await page.getByRole('button', { name: /Create private room/ }).click({ timeout: 10000 });
+  const response = await created;
+  expect(response.ok(), `Room creation HTTP ${response.status()}`).toBe(true);
   await expect(page.locator('.code-inline')).toHaveText(/^[A-Z0-9]{6}$/, { timeout: 10000 });
 }
 
