@@ -12,7 +12,7 @@ function cookieLock<T>(action: () => Promise<T>): Promise<T> {
   return navigator.locks ? navigator.locks.request('uno-auth-cookie', action) : action();
 }
 class ApiError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); }
+  constructor(public readonly status: number, message: string, public readonly data?: { code?: string; email?: string; verificationRequested?: boolean }) { super(message); }
 }
 const invalidSession = (error: unknown) => error instanceof ApiError && error.status === 401;
 const SESSION_EVENT = 'uno-account-session-change';
@@ -27,7 +27,7 @@ async function request<T>(path: string, body?: unknown, token?: string, method?:
   const response = await fetch(API + (path.startsWith('/') ? path : '/api/auth/' + path), { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'include', headers: { 'X-Uno-Browser': '1', 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')');
+    throw new ApiError(response.status, data?.message || (data?.errors ? Object.values(data.errors).flat().join(' ') : data?.title) || 'Request failed (' + response.status + ')', data);
   }
   return response.status === 204 ? undefined as T : response.json();
 }
@@ -89,16 +89,28 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [verifyToken, setVerifyToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('verify') || '');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [signupVerification, setSignupVerification] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const [retryAt, setRetryAt] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!retryAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAt]);
+  const remaining = Math.max(0, Math.ceil((retryAt - now) / 1000));
+  const clearVerification = () => { setPendingEmail(''); setSignupVerification(false); setRequested(false); setRetryAt(0); setNotice(''); };
   const resendVerification = async () => {
-    if (!identifier.includes('@')) { setError('Enter your email address to request a verification email.'); return; }
+    if (!pendingEmail || remaining || busy) return;
     setBusy(true); setError('');
-    try { await request('resend-verification', { email: identifier.trim() }); setNotice('If an eligible account exists, a verification email will be sent.'); }
+    try { await request('resend-verification', { email: pendingEmail }); setRequested(true); setNow(Date.now()); setRetryAt(Date.now() + 120000); setNotice('If eligible, a verification email will be sent. Check your inbox and spam folder.'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Unable to request verification.'); }
     finally { setBusy(false); }
   };
   const verifyEmail = async () => {
     setBusy(true); setError('');
-    try { await request('verify-email', { token: verifyToken }); setVerifyToken(''); history.replaceState(null, '', location.pathname + location.search); setNotice('Email verified. Sign in to continue.'); }
+    try { await request('verify-email', { token: verifyToken }); setVerifyToken(''); clearVerification(); history.replaceState(null, '', location.pathname + location.search); setNotice('Email verified. Sign in to continue.'); }
     catch (e) { setError(e instanceof Error ? e.message : 'Verification failed.'); }
     finally { setBusy(false); }
   };
@@ -149,37 +161,43 @@ export default function AuthGate({ children }: { children: (player: Profile | nu
     finally { publishSession(null); for (const key of [KEY, 'uno-guest', 'uno-room-access', 'uno-quick-match']) sessionStorage.removeItem(key); setSession(null); setGuest(false); setPassword(''); }
   };
   const submit = async (e: FormEvent) => {
-    e.preventDefault(); setError('');
+    e.preventDefault(); setError(''); clearVerification();
     if (register && password !== confirm) { setError('Passwords do not match.'); return; }
     setBusy(true);
     try {
       if (register) {
         await request('register', { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password });
-        setRegister(false); setPassword(''); setConfirm(''); setNotice('Check your email to verify your account before signing in.'); return;
+        setRegister(false); setPassword(''); setConfirm(''); setPendingEmail(identifier.trim()); setSignupVerification(true); setRequested(true); setNow(Date.now()); setRetryAt(Date.now() + 120000); return;
       }
       const result = await cookieLock(() => request<Session>(register ? 'register' : 'login', register ? { email: identifier.trim(), username: username.trim(), displayName: displayName.trim(), password } : { identifier: identifier.trim(), password }));
       sessionStorage.removeItem('uno-guest'); sessionStorage.removeItem('uno-room-access'); sessionStorage.removeItem('uno-quick-match');
       setSession(save(result)); setGuest(false); setPassword(''); setConfirm('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in.'); }
+     } catch (e) {
+      if (e instanceof ApiError && e.status === 403 && e.data?.code === 'EMAIL_NOT_VERIFIED' && e.data.email) {
+        setPendingEmail(e.data.email); setRequested(!!e.data.verificationRequested); setPassword('');
+      } else setError(e instanceof Error ? e.message : 'Unable to sign in.');
+    }
     finally { setBusy(false); }
   };
-  if (verifyToken) return <main className="auth-shell"><section className="auth-panel"><h2>Verify your email</h2><p>Confirm your email address to activate your account.</p>{error && <p role="alert">{error}</p>}<button className="auth-primary" disabled={busy} onClick={verifyEmail}>Verify email</button></section></main>;
+  if (verifyToken) return <main className="auth-shell"><section className="auth-panel"><h2>Verify your email</h2><p>Confirm your email address to activate your account.</p>{error && <p role="alert">{error}</p>}<button className="auth-primary" disabled={busy} onClick={verifyEmail}>Verify email</button><button className="auth-link" disabled={busy} onClick={() => { setVerifyToken(''); history.replaceState(null, '', location.pathname + location.search); setError(''); }}>Back to Sign In</button></section></main>;
   if (loading) return <div className="auth-shell auth-loading"><LoadingScreen title="Restoring your session"/></div>;
   if (session || guest) return <>{children(session?.player ?? null, logout, player => { const current = read(); if (current && current.player.userId === player.userId) { const next = { ...current, player }; publishSession(next); } })}</>;
+  const verificationButton = <button type="button" className="auth-link" disabled={busy || remaining > 0} onClick={resendVerification}>{remaining > 0 ? 'Resend email in ' + Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0') : requested ? 'Resend verification email' : 'Send verification email'}</button>;
+  if (signupVerification) return <main className="auth-shell"><section className="auth-panel"><h2>Check your email</h2><p>Verify your email to activate your UNO account.</p><p>{pendingEmail}</p>{notice && <p role="status">{notice}</p>}{error && <p role="alert">{error}</p>}{verificationButton}<button className="auth-link" disabled={busy} onClick={() => { clearVerification(); setError(''); }}>Back to Sign In</button></section></main>;
   return <main className={"auth-shell auth-redesign" + (register ? " auth-register" : "")}><div className="auth-floating" aria-hidden="true"><span>+2</span><span>↻</span><span>4</span><span>7</span></div><div className="auth-layout">
     <section className="auth-intro"><div className="auth-logo" aria-label="UNO">UNO</div><h1>{register ? 'Join the fun!' : 'Welcome back!'}</h1><p>Jump in and play your<br/> favorite <em>card game.</em></p><img className="auth-card-fan" src={import.meta.env.BASE_URL + 'auth-cards.svg'} alt="" /></section>
     <section className="auth-panel"><h2 id="auth-heading">{register ? 'Create Account' : 'Sign In'}</h2>
     {notice && <p role="status">{notice}</p>}
     <form onSubmit={submit} className="auth-form">
-      <label>{register ? 'Email' : 'Email or username'}<input required type={register ? 'email' : 'text'} value={identifier} onChange={e => setIdentifier(e.target.value)} maxLength={254} autoComplete="username" placeholder={register ? "Enter your email" : "Enter your email or username"}/></label>
+      <label>{register ? 'Email' : 'Email or username'}<input required type={register ? 'email' : 'text'} value={identifier} onChange={e => { setIdentifier(e.target.value); clearVerification(); setError(''); }} maxLength={254} autoComplete="username" placeholder={register ? "Enter your email" : "Enter your email or username"}/></label>
       {register && <><label>Username<input required pattern="[A-Za-z0-9_]{3,24}" value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname"/></label><label>Display name<input required maxLength={24} value={displayName} onChange={e => setDisplayName(e.target.value)}/></label></>}
       <label>Password<div className="auth-password"><input required type={show ? 'text' : 'password'} minLength={register ? 8 : 1} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} autoComplete={register ? 'new-password' : 'current-password'} placeholder="Enter your password"/><button type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{show && <path d="m3 3 18 18"/>}</svg></button></div></label>
       {register && <label>Confirm password<input required type={show ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password"/></label>}
       {error && <p className="auth-error" role="alert">{error}</p>}
       <button className="auth-primary" disabled={busy}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign In'}</button>
     </form>
-    <button className="auth-link" disabled={busy} onClick={() => { setRegister(!register); setError(''); setPassword(''); setConfirm(''); }}>{register ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
-    {!register && <button type="button" className="auth-link" disabled={busy} onClick={resendVerification}>Resend verification email</button>}
+    <button className="auth-link" disabled={busy} onClick={() => { setRegister(!register); clearVerification(); setError(''); setPassword(''); setConfirm(''); }}>{register ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
+    {!register && pendingEmail && <div className="auth-error"><strong>Email not verified</strong><p>Please verify your email address before signing in.</p>{verificationButton}</div>}
     <button className="auth-guest" disabled={busy} onClick={() => { sessionStorage.setItem('uno-guest','true'); setGuest(true); }}>Sign In as Guest</button><small>Guest progress is not saved.</small>
     <img className="auth-peeking-mascot" src={import.meta.env.BASE_URL + "auth-mascot-3d.webp"} alt="" onError={e => { e.currentTarget.style.display = "none"; }}/></section></div></main>;
 }
