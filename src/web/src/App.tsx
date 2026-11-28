@@ -20,7 +20,7 @@ interface Room { snapshotSequence: number; id: string; code: string; maximumPlay
 interface Access { room: Room; playerId: string; accessToken: string }
 interface Card { color: Color; type: number; number: number | null }
 interface GamePlayer { playerId: string; displayName: string; cardCount: number; hand: Card[] | null }
-interface Game { matchId: string; snapshotSequence: number; roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
+interface Game { actionRevision: string; matchId: string; snapshotSequence: number; roomCode: string; roomStatus: number; gameStatus: number; ruleSet: RuleSet; viewerPlayerId: string; currentPlayerId: string; activeColor: Color; topDiscard: Card; drawPileCount: number; discardPileCount: number; turnDirection: number; pendingDrawAmount: number; pendingDrawType: number | null; isWildDrawFourChallengePending: boolean; canPassAfterDraw: boolean; justDrawnCard: Card | null; turnDeadlineUtc: string; playerAwaitingUnoCallId: string | null; players: GamePlayer[] }
 interface GameActionEvent { eventSequence: number; action: 'CardPlayed' | 'CardDrawn' | 'CardsDrawn'; playerId: string; card: Card | null; drawCount: number; drawTargetPlayerId: string | null; occurredAtUtc: string }
 
 const ruleName = (r: RuleSet) => r === 1 ? 'House Rules' : 'Official Rules';
@@ -240,7 +240,8 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
     setWildIndex(null);
     setError(''); setNotice('');
     try {
-      await hub.invoke(method, access.room.code, access.accessToken, ...args);
+      if (!game?.actionRevision) throw new Error('Game state is not ready.');
+      await hub.invoke(method, access.room.code, access.accessToken, game.actionRevision, ...args);
     } catch (e) {
       if (stillInRoom()) setError(e instanceof Error ? e.message : 'That action was rejected.');
     } finally {
@@ -256,7 +257,7 @@ function GameApp({ player, logout, updateProfile }: { player: Profile | null; lo
         if (stillInRoom()) setBusy(false);
       }
     }
-  }, [access, hub, acceptGame]);
+  }, [access, hub, acceptGame, game]);
 
   const changeRule = async (value: RuleSet) => {
     if (!access || !room) return;
