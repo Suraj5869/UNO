@@ -27,6 +27,16 @@ public sealed record GameStateResponse(
     Guid? PlayerAwaitingUnoCallId,
     IReadOnlyList<GamePlayerResponse> Players)
 {
+    private static readonly byte[] RevisionKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+    public string ActionRevision { get; init; } = "";
+    public static string Revision(UnoGameRoom room) =>
+        Convert.ToHexString(System.Security.Cryptography.HMACSHA256.HashData(RevisionKey,
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(room.ExportCheckpoint())));
+    public static void RequireRevision(UnoGameRoom room, string revision)
+    {
+        if (string.IsNullOrEmpty(revision) || !string.Equals(Revision(room), revision, StringComparison.Ordinal))
+            throw new InvalidOperationException("Game state changed. Refresh and retry.");
+    }
     public Guid MatchId { get; init; }
     public long SnapshotSequence { get; init; }
 
@@ -78,7 +88,7 @@ public sealed record GameStateResponse(
                     isViewer
                         ? gamePlayer.Hand.Select(UnoCardResponse.From).ToArray()
                         : null);
-            }).ToArray()) { SnapshotSequence = SnapshotOrder.Next(), MatchId = game.MatchId };
+            }).ToArray()) { SnapshotSequence = SnapshotOrder.Next(), MatchId = game.MatchId, ActionRevision = Revision(room) };
     }
 }
 
