@@ -23,7 +23,7 @@ public sealed record CosmeticSelection([Required, MaxLength(80)] string ItemKey)
 public sealed record CosmeticView(string ItemKey, string Category, string DisplayName, bool Owned, bool Equipped, int RequiredLevel, int RequiredSeasonXp);
 public sealed record AccountIdentity(Guid Id);
 public sealed record SessionRow(Guid Id, Guid UserId);
-public sealed record AccountRow(Guid Id, string PasswordHash, bool EmailVerified);
+public sealed record AccountRow(Guid Id, string PasswordHash, bool EmailVerified, string Email, bool VerificationRequested);
 public sealed record PlayerProfile(Guid UserId, Guid PublicPlayerId, string Email, string Username, string DisplayName,
     string AvatarKey, int Level, long TotalXp, int MatchesPlayed, int Wins, string CardBackKey, string TableThemeKey);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, int ExpiresIn, PlayerProfile Player);
@@ -75,7 +75,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             await tx.CommitAsync(ct);
             try { await SendVerification(email, token, ct); }
             catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
-            { services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed; account can request a resend."); }
+            { services.GetRequiredService<ILogger<AuthController>>().LogWarning("Verification email delivery failed. Type: {Type}, Status: {Status}", ex.GetType().Name, (ex as HttpRequestException)?.StatusCode); }
             return StatusCode(202, new { message = "Check your email to verify your account." });
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -186,7 +186,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
             """,new { Hash=attemptKey },cancellationToken:ct));
         if(attempts>5) return StatusCode(429,new { message="Too many login attempts. Try again later." });
         var account = await connection.QuerySingleOrDefaultAsync<AccountRow>(new CommandDefinition("""
-            select u.id, u.password_hash as PasswordHash, u.email_verified_at is not null as EmailVerified from uno.users u
+            select u.id, u.password_hash as PasswordHash, u.email_verified_at is not null as EmailVerified, u.email, exists(select 1 from uno.email_verification_tokens v where v.user_id=u.id) as VerificationRequested from uno.users u
             join uno.player_profiles p on p.user_id=u.id
             where lower(trim(u.email))=@Identifier or lower(p.username)=@Identifier
             """, new { Identifier=identifier }, cancellationToken:ct));
@@ -203,7 +203,7 @@ public sealed class AuthController(IServiceProvider services, PasswordHasher<Acc
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
             await connection.ExecuteAsync(new CommandDefinition("update uno.users set password_hash=@Hash, updated_at=now() where id=@Id",
                 new { account.Id, Hash=hasher.HashPassword(new AccountIdentity(account.Id),request.Password) }, tx,cancellationToken:ct));
-        if (!account.EmailVerified) return StatusCode(403, new { message = "Verify your email before signing in." });
+        if (!account.EmailVerified) return StatusCode(403, new { code = "EMAIL_NOT_VERIFIED", message = "Verify your email before signing in.", email = account.Email, verificationRequested = account.VerificationRequested });
         var response = await Issue(connection, tx, jwt, account.Id, ct);
         await tx.CommitAsync(ct);
         return Ok(BrowserResponse(response));
