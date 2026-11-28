@@ -15,7 +15,7 @@ UnoApi.Build(args).Run();
 
 public static class UnoApi
 {
-    public static WebApplication Build(string[] args, Action<IServiceCollection>? configureServices = null)
+    public static WebApplication Build(string[] args, Action<IServiceCollection>? configureServices = null, bool browserTestHost = false)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -181,7 +181,7 @@ public static class UnoApi
             await next();
         });
         app.UseAuthorization();
-        app.UseRateLimiter();
+        if (!browserTestHost || !app.Environment.IsDevelopment()) app.UseRateLimiter();
 
         app.MapGet("/api/health/database", async (HttpContext context, CancellationToken cancellationToken) =>
         {
