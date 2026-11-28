@@ -85,15 +85,16 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     public Task PlayCard(
         string code,
         string accessToken,
+        string revision,
         int cardIndex,
-        CardColor chosenColor = CardColor.None)
+        CardColor chosenColor)
     {
         UnoCard? playedCard = null;
         Guid? automaticDrawTargetPlayerId = null;
         var automaticDrawCount = 0;
         UnoPlayer? drawTarget = null;
         var beforeDraw = 0;
-        return ExecuteAction(code, accessToken, (room, playerId) =>
+        return ExecuteAction(code, accessToken, revision, (room, playerId) =>
         {
             var game = RequireGame(room);
             var gamePlayerId = GetGamePlayerId(room, playerId);
@@ -119,19 +120,19 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             : new GameActionPayload("CardPlayed", playerId, UnoCardResponse.From(playedCard), automaticDrawCount, automaticDrawTargetPlayerId));
     }
 
-    public Task DrawCard(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
+    public Task DrawCard(string code, string accessToken, string revision) =>
+        ExecuteAction(code, accessToken, revision, (room, playerId) =>
             new UnoGameEngine().DrawCard(RequireGame(room), GetGamePlayerId(room, playerId)),
             playerId => new GameActionPayload("CardDrawn", playerId, null, 1));
 
-    public Task PassAfterDraw(string code, string accessToken) =>
-        ExecuteAction(code, accessToken, (room, playerId) =>
+    public Task PassAfterDraw(string code, string accessToken, string revision) =>
+        ExecuteAction(code, accessToken, revision, (room, playerId) =>
             new UnoGameEngine().PassAfterDraw(RequireGame(room), GetGamePlayerId(room, playerId)));
 
-    public Task AcceptDrawPenalty(string code, string accessToken)
+    public Task AcceptDrawPenalty(string code, string accessToken, string revision)
     {
         var drawCount = 0;
-        return ExecuteAction(code, accessToken, (room, playerId) =>
+        return ExecuteAction(code, accessToken, revision, (room, playerId) =>
         {
             var game = RequireGame(room);
             var before = game.CurrentPlayer;
@@ -141,10 +142,10 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         }, playerId => drawCount > 0 ? new GameActionPayload("CardsDrawn", playerId, null, drawCount) : null);
     }
 
-    public Task AcceptWildDrawFour(string code, string accessToken)
+    public Task AcceptWildDrawFour(string code, string accessToken, string revision)
     {
         var drawCount = 0;
-        return ExecuteAction(code, accessToken, (room, playerId) =>
+        return ExecuteAction(code, accessToken, revision, (room, playerId) =>
         {
             var game = RequireGame(room);
             var before = game.CurrentPlayer;
@@ -154,11 +155,11 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         }, playerId => drawCount > 0 ? new GameActionPayload("CardsDrawn", playerId, null, drawCount) : null);
     }
 
-    public Task ChallengeWildDrawFour(string code, string accessToken)
+    public Task ChallengeWildDrawFour(string code, string accessToken, string revision)
     {
         Guid? drawTargetPlayerId = null;
         var drawCount = 0;
-        return ExecuteAction(code, accessToken, (room, playerId) =>
+        return ExecuteAction(code, accessToken, revision, (room, playerId) =>
         {
             var game = RequireGame(room);
             var result = new UnoGameEngine().ChallengeWildDrawFour(game, GetGamePlayerId(room, playerId));
@@ -169,13 +170,14 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             : new GameActionPayload("CardsDrawn", drawTargetPlayerId.Value, null, drawCount));
     }
 
-    public async Task CallUno(string code, string accessToken)
+    public async Task CallUno(string code, string accessToken, string revision)
     {
         var player = roomStore.ExecuteLocked(code, room =>
         {
             RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
+            GameStateResponse.RequireRevision(room, revision);
             var participant = room.Players.First(candidate => candidate.Id == playerId);
             new UnoGameEngine().CallUno(RequireGame(room), GetGamePlayerId(room, playerId));
             return participant.DisplayName;
@@ -187,10 +189,10 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
         await publisher.PublishGameStateAsync(code);
     }
 
-    public Task CatchUno(string code, string accessToken, Guid targetPlayerId)
+    public Task CatchUno(string code, string accessToken, string revision, Guid targetPlayerId)
     {
         var drawCount = 0;
-        return ExecuteAction(code, accessToken, (room, playerId) =>
+        return ExecuteAction(code, accessToken, revision, (room, playerId) =>
         {
             var game = RequireGame(room);
             var targetId = GetGamePlayerId(room, targetPlayerId);
@@ -204,6 +206,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
     private async Task ExecuteAction(
         string code,
         string accessToken,
+        string revision,
         Action<UnoGameRoom, Guid> action,
         Func<Guid, GameActionPayload?>? actionEventFactory = null)
     {
@@ -212,6 +215,7 @@ public sealed class UnoRoomHub(RoomStore roomStore, RoomRealtimePublisher publis
             RequireSession(code, accessToken);
         var playerId = roomStore.AuthorizeParticipant(code, accessToken);
             RequireConnection(code, accessToken);
+            GameStateResponse.RequireRevision(room, revision);
             var wasCurrent = room.Game is {} before && before.CurrentPlayer.Id == GetGamePlayerId(room,playerId);
             action(room, playerId);
             if (wasCurrent && room.Game is {} game) roomStore.MarkParticipation(game.MatchId,playerId);
